@@ -16,6 +16,7 @@ GuardIA/
 │   └── runbooks/                 # tagging guide, on-call guide
 ├── infra/                        # (task 1.1) AWS CDK app
 │   ├── app.py
+│   ├── config.py                 # default thresholds published to SSM
 │   ├── stacks/
 │   │   ├── data_stack.py             # DynamoDB, KMS, Secrets Manager, SSM
 │   │   ├── detection_stack.py        # discovery, EventBridge rules, watchdog

@@ -52,7 +52,7 @@ Python 3.12 · AWS CDK · Step Functions · Lambda · EventBridge · DynamoDB ·
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
-cdk synth
+npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
 ```
 
 ## Status

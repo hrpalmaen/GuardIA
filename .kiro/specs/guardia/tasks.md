@@ -3,7 +3,7 @@
 All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hours and references the criteria from `requirements.md` that it implements. Dependencies are indicated in the title of each group.
 
 - [ ] 1. Project foundation and data models
-- [ ] 1.1 Create the AWS CDK project in Python
+- [x] 1.1 Create the AWS CDK project in Python
   - Monorepo structure: `infra/` (stacks), `src/guardia_common/` (shared library), `src/lambdas/`, and `tests/`.
   - Configuration parameters in SSM (deadline, grouping window, time and wait thresholds) with the default values from the design.
   - Tests: CDK synthesis generates the template without errors.
