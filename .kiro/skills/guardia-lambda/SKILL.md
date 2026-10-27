@@ -1,58 +1,60 @@
 
 ---
 name: guardia-lambda
-description: Guía para implementar AWS Lambda siguiendo la arquitectura, seguridad y estándares del proyecto Guardia.
+description: Guidelines for implementing AWS Lambda functions that follow the Guardia project's architecture, security requirements, and engineering standards.
 ---
 
 # Skill: Guardia Lambda
 
-## Objetivo
+## Objective
 
-Establecer el procedimiento para crear o modificar funciones AWS Lambda de forma consistente con la arquitectura y los requisitos del proyecto Guardia.
+Define a consistent procedure for creating and modifying AWS Lambda functions in accordance with the Guardia project's architecture, requirements, and security standards.
 
-## Antes de comenzar
+## Before You Start
 
-1. Consultar `tasks.md` para identificar la tarea que se va a implementar.
-2. Consultar `requirements.md` para identificar los requisitos relacionados.
-3. Revisar `tech.md` para conocer las reglas técnicas y de seguridad.
-4. Revisar el código existente para reutilizar componentes y convenciones del proyecto.
+1. Review `tasks.md` to identify the task to be implemented.
+2. Review `requirements.md` to identify the applicable functional and technical requirements.
+3. Read `tech.md` to understand the project's technical conventions and security constraints.
+4. Inspect the existing codebase to reuse established patterns and components.
 
-## Arquitectura
+## Architecture and Implementation
 
-1. Mantener el handler de Lambda delgado.
-2. Delegar la lógica de negocio reutilizable en `src/guardia_common/`.
-3. Ubicar el código específico de cada función en la estructura de `src/lambdas/` definida por el proyecto.
-4. Reutilizar los modelos Pydantic existentes para validar datos de entrada y salida cuando corresponda.
+1. Keep Lambda handlers thin and focused on request handling and orchestration.
+2. Place reusable business logic in `src/guardia_common/`.
+3. Place Lambda-specific code under `src/lambdas/`, following the repository's existing structure.
+4. Reuse existing Pydantic models to validate inputs and outputs where applicable.
+5. Avoid duplicating business logic that belongs in shared modules.
 
-## Auditoría y errores
+## Auditing and Error Handling
 
-1. Aplicar el decorador de auditoría establecido por el proyecto.
-2. Manejar errores de forma controlada y consistente.
-3. Evitar registrar credenciales, tokens u otra información sensible.
-4. Respetar el catálogo de errores y las convenciones documentadas.
+1. Apply the auditing decorator established by the project.
+2. Handle exceptions consistently and avoid exposing sensitive information.
+3. Follow the project's error-handling conventions and use the `ErrorCatalog` when applicable.
+4. Ensure logs do not contain credentials, access tokens, or other sensitive data.
 
-## Seguridad
+## Security Requirements
 
-1. Aplicar el principio de mínimo privilegio a los permisos IAM de cada Lambda.
-2. Evitar permisos amplios que no sean necesarios para la función.
-3. Obtener los umbrales y parámetros operativos desde AWS Systems Manager Parameter Store (SSM), según la configuración del proyecto.
-4. No incluir secretos ni credenciales directamente en el código.
+1. Apply the principle of least privilege to each Lambda's IAM policy.
+2. Grant only the permissions required by the function.
+3. Retrieve operational thresholds and configuration parameters from AWS Systems Manager Parameter Store (SSM), following the project's conventions.
+4. Never hardcode credentials, tokens, or secrets in source code.
+5. Follow the security requirements documented in `tech.md`.
 
-## Pruebas y validación
+## Testing and Validation
 
-1. Crear pruebas unitarias para la lógica implementada.
-2. Asociar las pruebas con los IDs reales de requisitos mediante el marcador `@pytest.mark.req("x.y")`.
-3. Cubrir los casos exitosos, los errores y los límites relevantes.
-4. Ejecutar las pruebas y los controles de calidad configurados en el repositorio.
-5. Corregir los fallos antes de solicitar la revisión del cambio.
+1. Write unit tests for the implemented business logic.
+2. Associate tests with existing requirement IDs using `@pytest.mark.req("x.y")`.
+3. Cover successful scenarios, invalid inputs, error conditions, and relevant boundary cases.
+4. Run the applicable tests and configured quality checks.
+5. Fix identified failures before requesting code review.
 
-## Restricciones
+## Restrictions
 
-- No inventar requisitos, nombres de recursos ni parámetros de configuración.
-- No duplicar lógica compartida que corresponda a `guardia_common`.
-- No agregar permisos IAM innecesarios.
-- No considerar terminada una tarea sin validar los requisitos y las pruebas aplicables.
+- Do not invent requirements, resource names, or configuration parameters.
+- Do not duplicate logic that belongs in `guardia_common`.
+- Do not introduce unnecessary IAM permissions.
+- Do not consider a task complete until its applicable requirements and tests have been verified.
 
-## Criterios de finalización
+## Definition of Done
 
-La implementación debe cumplir los requisitos documentados, respetar la arquitectura y las reglas de seguridad, incluir pruebas pertinentes y superar los controles de calidad establecidos por el proyecto.
+An implementation is complete when it satisfies the documented requirements, follows the project's architecture and security standards, includes appropriate tests, and passes the applicable quality checks.
