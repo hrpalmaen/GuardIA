@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "req-traceability",
+  "description": "Comprueba la trazabilidad de requisitos cuando se guarda una prueba.",
+  "version": "1",
+  "when": {
+    "type": "fileSaved",
+    "filePattern": "tests/**/*.py"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Se guardó un archivo de pruebas. Revisa cada función de prueba pytest del archivo. Cada prueba debe tener un decorador @pytest.mark.req(\"ID\"), y ese ID debe corresponder a un criterio existente en .kiro/specs/guardia/requirements.md. Si falta el marcador, determina el requisito que la prueba realmente verifica y agrégalo. No inventes IDs. Ejecuta las pruebas afectadas y reporta cualquier marcador o requisito que no puedas validar."
+  }
+}

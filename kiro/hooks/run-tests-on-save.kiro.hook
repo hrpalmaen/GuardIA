@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "run-tests-on-save",
+  "description": "Ejecuta las pruebas relacionadas cuando se guarda un archivo Python en src y corrige los fallos.",
+  "version": "1",
+  "when": {
+    "type": "fileSaved",
+    "filePattern": "src/**/*.py"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Se guardó un archivo Python bajo src/. Identifica las pruebas relacionadas usando los imports y la estructura del proyecto. Ejecuta esas pruebas. Si alguna falla, analiza el error, corrige el código o la prueba según corresponda y vuelve a ejecutar las pruebas afectadas. Informa qué pruebas corriste y su resultado; no afirmes que pasaron si no las ejecutaste."
+  }
+}
