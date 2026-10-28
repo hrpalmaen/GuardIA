@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guardia"
+version = "0.1.0"
+description = "AI agent that monitors Genesys extraction processes on AWS, remediates known failures, and escalates to the on-call engineer in Teams."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "boto3>=1.35",
+    "pydantic>=2.8",
+    "croniter>=3.0",
+]
+
+[project.optional-dependencies]
+infra = [
+    "aws-cdk-lib>=2.160",
+    "constructs>=10.3",
+]
+dev = [
+    "guardia[infra]",
+    "pytest>=8.3",
+    "moto>=5.0",
+    "ruff>=0.17",
+    "pre-commit>=3.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["guardia_common*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "infra"]
+addopts = "-ra --strict-markers"
+markers = [
+    "req(id): links a test to an acceptance criterion in .kiro/specs/guardia/requirements.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "infra", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
