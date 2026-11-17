@@ -13,13 +13,8 @@ from tests.unit.fakes import BACKUP, PRIMARY, WEBHOOK, new_incident_item
 
 @pytest.fixture
 def lambda_env(aws, monkeypatch):
-    dynamodb = boto3.resource("dynamodb", region_name=REGION)
-    schedule = dynamodb.create_table(
-        TableName="OnCallSchedule",
-        KeySchema=[{"AttributeName": "week_start", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "week_start", "AttributeType": "S"}],
-        BillingMode="PAY_PER_REQUEST",
-    )
+    # The shared `aws` fixture already creates OnCallSchedule (and every other table).
+    schedule = aws["tables"]["OnCallSchedule"]
     schedule.put_item(Item={"week_start": "2026-11-09", "primary": PRIMARY, "backup": BACKUP})
     boto3.client("secretsmanager", region_name=REGION).create_secret(
         Name="guardia/teams-webhook", SecretString=WEBHOOK
