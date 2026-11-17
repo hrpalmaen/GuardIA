@@ -1,0 +1,34 @@
+[
+  {
+    "process_type": "*",
+    "error_pattern": "\\b429\\b|too many requests|rate.?limit",
+    "classification": "auto_recoverable",
+    "action": "wait_and_redrive",
+    "max_wait_s": 600,
+    "description": "Genesys rate limit (429). Wait the indicated time, max. 600 s, then redrive. Req. 4.2."
+  },
+  {
+    "process_type": "*",
+    "error_pattern": "\\b40[13]\\b|forbidden|unauthori[sz]ed|access.?denied|invalid_(client|grant|token)|authenticat",
+    "classification": "requires_escalation",
+    "action": "escalate",
+    "max_wait_s": 0,
+    "description": "403 or authentication error. Retrying does not help. Req. 4.3."
+  },
+  {
+    "process_type": "*",
+    "error_pattern": "\\b404\\b|not.?found",
+    "classification": "requires_escalation",
+    "action": "escalate",
+    "max_wait_s": 0,
+    "description": "404 that made the execution fail. Req. 4.4."
+  },
+  {
+    "process_type": "*",
+    "error_pattern": "\\bTIMED_OUT\\b|States\\.Timeout",
+    "classification": "auto_recoverable",
+    "action": "redrive",
+    "max_wait_s": 0,
+    "description": "Execution timed out. Redrive. Design §4 initial content."
+  }
+]

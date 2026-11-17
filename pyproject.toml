@@ -32,7 +32,7 @@ include = ["guardia_common*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "infra"]
+pythonpath = ["src", "infra", "scripts"]
 addopts = "-ra --strict-markers"
 markers = [
     "req(id): links a test to an acceptance criterion in .kiro/specs/guardia/requirements.md",

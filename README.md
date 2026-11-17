@@ -55,6 +55,12 @@ pytest
 npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
 ```
 
+Local demo of `OpenIncident` and `ClassifyIncident` (in memory with moto, no AWS account needed):
+
+```bash
+python scripts/demo_open_and_classify.py
+```
+
 ## Status
 
 - [x] Specification (requirements, design, tasks)
