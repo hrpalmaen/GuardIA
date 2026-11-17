@@ -4,7 +4,9 @@ Pure functions: no AWS calls, so they are fully table-testable.
 
 Rules, in order:
 1. `MISSED_RUN` is always `requires_escalation` (4.4), before looking at the catalog.
-2. Catalog rows for the incident's process type, then rows for `"*"`.
+2. The subject is the root cause from the execution history plus the final
+   error and cause (all sanitized).
+   Catalog rows for the incident's process type, then rows for `"*"`.
    Within each group, `requires_escalation` rows are evaluated before
    `auto_recoverable` rows, so an ambiguous cause (for example one that
    mentions both 403 and 429) never becomes an automatic action.
@@ -18,6 +20,7 @@ import re
 from dataclasses import dataclass
 
 from .models import CatalogAction, CatalogEntry, Classification, Incident, IncidentKind
+from .redaction import sanitize_cause
 
 ANY_PROCESS_TYPE = "*"
 
@@ -43,7 +46,16 @@ class ClassificationResult:
 
 
 def _subject(incident: Incident) -> str:
-    return "\n".join(part for part in (incident.kind, incident.error, incident.cause) if part)
+    """Root cause first, then the final error: an escalation pattern found in
+    either one wins, because escalation rows are evaluated first (see rule 2)."""
+    parts = (
+        incident.kind,
+        incident.root_error,
+        incident.root_cause,
+        incident.error,
+        sanitize_cause(incident.cause),
+    )
+    return "\n".join(part for part in parts if part)
 
 
 def _ordered(entries: list[CatalogEntry], process_type: str) -> list[CatalogEntry]:

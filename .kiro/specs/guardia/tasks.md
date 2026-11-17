@@ -13,6 +13,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Create `ProcessRegistry`, `Incidents` (unique index by `execution_arn`, with encrypted `task_token` and `teams_thread_id`), `IncidentEvents`, `ErrorCatalog`, and `OnCallSchedule` (with `teams_user_id`, `display_name`, and `email`), all encrypted with KMS.
   - `IncidentEvents` with a policy that only allows conditional `PutItem`, a 13-month TTL, and point-in-time recovery.
   - Tests: an IAM policy test confirms that `IncidentEvents` rejects updates and deletes.
+  - Progress: tables defined once in `guardia_common/tables.py` and built from it by `DataStack` (KMS, TTL, PITR, `execution_arn` index) and by the local environments. Pending: the IAM append-only policy and its test (they need the Lambda roles).
   - _Requirements: 10.2, 10.3_
 
 - [ ] 1.3 Implement the `guardia_common` library
@@ -21,16 +22,17 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Unit tests for model validation, including rejection of an `AgentDecision` with a disallowed action.
   - _Requirements: 4.6, 10.1_
 
-- [ ] 1.4 Load the initial `ErrorCatalog` content
+- [x] 1.4 Load the initial `ErrorCatalog` content
   - 429 → `wait_and_redrive` (maximum wait of 600 s); 403 → `escalate`; 404 with a failed execution → `escalate`; `TIMED_OUT` → `redrive`.
   - Idempotent load script and schema validation.
   - Tests: the loaded catalog matches the schema.
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
 - [ ] 2. Process discovery (depends on 1.2, 1.3)
-- [ ] 2.1 Implement the `DiscoverProcesses` Lambda
+- [x] 2.1 Implement the `DiscoverProcesses` Lambda
   - List resources tagged `guardia:monitor=true` with the tagging API.
   - Validate `process-type`, `organization`, and `remediation`; exclude and warn if any is missing; treat an invalid `remediation` value as `escalate-only`.
+  - Read the schedules that launch each process (EventBridge rules that target it and Scheduler schedules) and the median duration of the last successful executions (design D14).
   - Update `ProcessRegistry`.
   - Tests with moto: complete resource, incomplete resource, invalid value, and new process.
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
@@ -41,7 +43,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 1.1_
 
 - [ ] 3. Failure detection (depends on 2.1)
-- [ ] 3.1 Implement the `OpenIncident` Lambda
+- [x] 3.1 Implement the `OpenIncident` Lambda
   - Create the incident with a conditional write by `execution_arn` to avoid duplicates.
   - Enrich with `DescribeExecution`: error, cause, input, and deadline according to the registry.
   - Start `GuardIA-Incident-Flow`.
@@ -54,20 +56,20 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: valid and invalid event patterns against the rule pattern.
   - _Requirements: 2.1_
 
-- [ ] 3.3 Implement the computation of expected executions and maximum duration
+- [x] 3.3 Implement the computation of expected executions and maximum duration
   - Utility with `croniter` and time zone that returns the expected executions in a window.
   - Median of the last 14 executions; with fewer than 5, 50% of the periodicity.
   - Tests with simulated time, including the day change.
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 3.4 Implement the `MissedRunWatchdog` Lambda
+- [x] 3.4 Implement the `MissedRunWatchdog` Lambda
   - Every 5 minutes, detect `MISSED_RUN` (10-minute tolerance) and `STUCK_RUN` (more than twice the median).
   - Publish the incident through `OpenIncident`.
   - Tests: on-time execution, missed, delayed, and already with an open incident.
   - _Requirements: 3.1, 3.2, 3.3_
 
 - [ ] 4. Classification (depends on 1.4, 3.1)
-- [ ] 4.1 Implement the `ClassifyIncident` Lambda
+- [x] 4.1 Implement the `ClassifyIncident` Lambda
   - Resolve by (process type, error pattern) against the catalog; return `unknown` if there is no match.
   - Treat `MISSED_RUN` as `requires_escalation`.
   - Table-driven tests with 429, 403, failed 404, `TIMED_OUT`, `MISSED_RUN`, and unknown cause.

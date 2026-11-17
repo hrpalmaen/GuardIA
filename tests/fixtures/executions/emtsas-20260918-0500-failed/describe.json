@@ -1,0 +1,17 @@
+{
+ "executionArn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail:e5b99267-cbf0-2e4d-785c-e34f730d460d_75703f17-133e-908c-5a77-4368d17b8a44",
+ "stateMachineArn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail",
+ "name": "e5b99267-cbf0-2e4d-785c-e34f730d460d_75703f17-133e-908c-5a77-4368d17b8a44",
+ "status": "FAILED",
+ "startDate": "2026-09-18T05:00:31.301000+00:00",
+ "stopDate": "2026-09-18T05:00:37.920000+00:00",
+ "input": "{\"source\":\"scheduled\",\"intervalStart\":\"\",\"intervalEnd\":\"\",\"attributesOneByOne\":false,\"bucketName\":\"\",\"s3Prefix\":\"\",\"prefix\":\"\"}",
+ "inputDetails": {
+  "included": true
+ },
+ "error": "IngestionControllerError",
+ "cause": "IngestionController failed",
+ "redriveCount": 0,
+ "redriveStatus": "NOT_REDRIVABLE",
+ "redriveStatusReason": "Execution's redrivable period has ended"
+}

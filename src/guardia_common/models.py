@@ -79,17 +79,37 @@ class _Item(BaseModel):
         return cls.model_validate(from_dynamo(item))
 
 
+class ScheduleRef(BaseModel):
+    """A trigger that launches the process, read from AWS by DiscoverProcesses.
+
+    `source` is `events-rule` (EventBridge rule, always UTC) or `scheduler`
+    (EventBridge Scheduler, with its own time zone)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    expression: str
+    timezone: str = "UTC"
+    source: Literal["events-rule", "scheduler"]
+    name: str
+
+
 class ProcessRecord(_Item):
-    """`ProcessRegistry` row (PK resource_arn), written by DiscoverProcesses."""
+    """`ProcessRegistry` row (PK resource_arn), written by DiscoverProcesses.
+
+    `timezone` and `deadline_local` define the SLA deadline (business time);
+    each schedule carries the zone its expression is evaluated in.
+    """
 
     resource_arn: str
     process_type: str
     organization: str
     remediation: Remediation = "escalate-only"
-    schedule_cron: str | None = None
+    schedules: list[ScheduleRef] = Field(default_factory=list)
     timezone: str | None = None
     deadline_local: str | None = None
     median_duration_s: float | None = None
+    duration_samples: int = 0
+    first_seen_iso: str | None = None
     last_seen_iso: str | None = None
 
     @field_validator("remediation", mode="before")
@@ -110,6 +130,11 @@ class Incident(_Item):
     cause: str | None = None
     deadline_iso: str
     remediation: Remediation
+    # Root cause from the execution history (guardia_common.root_cause); the
+    # final error often hides it. All causes are stored sanitized.
+    root_error: str | None = None
+    root_cause: str | None = None
+    failed_state: str | None = None
 
     resource_arn: str
     status: IncidentStatus = IncidentStatus.OPEN

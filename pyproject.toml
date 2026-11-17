@@ -28,7 +28,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["guardia_common*"]
+include = ["guardia_common*", "guardia_local*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

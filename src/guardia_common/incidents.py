@@ -11,12 +11,22 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from .models import Incident, IncidentKind, IncidentStatus, ProcessRecord
+from .redaction import sanitize_cause
 from .schedule import parse_timestamp, sla_deadline, to_local_iso
 
 STATUS_CHANGE_DETAIL_TYPE = "Step Functions Execution Status Change"
 WATCHDOG_SOURCE = "guardia.watchdog"
 FAILURE_STATUSES = {IncidentKind.FAILED, IncidentKind.TIMED_OUT, IncidentKind.ABORTED}
 WATCHDOG_KINDS = {IncidentKind.MISSED_RUN, IncidentKind.STUCK_RUN}
+
+# EventBridge patterns of the rules that invoke OpenIncident (the CDK detection
+# stack and the local bus use the same ones).
+STATUS_CHANGE_PATTERN = {
+    "source": ["aws.states"],
+    "detail-type": [STATUS_CHANGE_DETAIL_TYPE],
+    "detail": {"status": sorted(k.value for k in FAILURE_STATUSES)},
+}
+WATCHDOG_PATTERN = {"source": [WATCHDOG_SOURCE]}
 
 # Fixed namespace: the same execution always maps to the same incident_id.
 _INCIDENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "urn:guardia:incident")
@@ -37,6 +47,9 @@ class Detection:
     error: str | None = None
     cause: str | None = None
     execution_input: str | None = None
+    root_error: str | None = None
+    root_cause: str | None = None
+    failed_state: str | None = None
     source: str = "eventbridge"
 
 
@@ -123,7 +136,10 @@ def build_incident(
         process_type=process.process_type,
         kind=detection.kind,
         error=detection.error,
-        cause=detection.cause,
+        cause=sanitize_cause(detection.cause),
+        root_error=detection.root_error,
+        root_cause=sanitize_cause(detection.root_cause),
+        failed_state=detection.failed_state,
         deadline_iso=deadline.isoformat(timespec="seconds"),
         remediation=process.remediation,
         resource_arn=detection.resource_arn,

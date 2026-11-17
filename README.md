@@ -49,16 +49,26 @@ Python 3.12 · AWS CDK · Step Functions · Lambda · EventBridge · DynamoDB ·
 ## Getting started
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv ~/.venvs/guardia && source ~/.venvs/guardia/bin/activate
 pip install -e ".[dev]"
 pytest
 npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
 ```
 
+On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
+virtual environment on the Linux file system as above: a `.venv` inside the
+repository makes the test suite about 40 times slower.
+
 Local demo of `OpenIncident` and `ClassifyIncident` (in memory with moto, no AWS account needed):
 
 ```bash
 python scripts/demo_open_and_classify.py
+```
+
+Local demo of all of Level 0 plus classification (`DiscoverProcesses`, `MissedRunWatchdog`, `OpenIncident`, `ClassifyIncident`): a whole night (23:00 to 06:00 Bogota) on a virtual clock. The real executions are replayed every hour, along with the two real failures, a redelivered event, and missed, delayed, and stuck runs:
+
+```bash
+python scripts/demo_discovery_and_watchdog.py
 ```
 
 ## Status

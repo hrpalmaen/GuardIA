@@ -23,6 +23,13 @@ DEFAULT_THRESHOLDS: dict[str, str] = {
     "grouping-min-incidents": "3",
     "watchdog-interval-minutes": "5",
     "discovery-interval-minutes": "15",
+    # Level 0 · missed and stuck executions (requirement 3)
+    "missed-run-tolerance-minutes": "10",
+    "watchdog-lookback-minutes": "60",
+    "stuck-median-multiplier": "2",
+    "stuck-period-fraction": "0.5",
+    "median-window-executions": "14",
+    "median-min-executions": "5",
     # Heartbeat
     "heartbeat-missing-minutes": "10",
 }

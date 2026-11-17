@@ -1,0 +1,134 @@
+{
+ "events": [
+  {
+   "timestamp": "2026-09-18T05:00:31.301000+00:00",
+   "type": "ExecutionStarted",
+   "id": 1,
+   "previousEventId": 0,
+   "executionStartedEventDetails": {
+    "roleArn": "arn:aws:iam::123456789012:role/BI-EMTSAS-GCRAW-StepFunctionsRole"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:31.323000+00:00",
+   "type": "TaskStateEntered",
+   "id": 2,
+   "previousEventId": 0,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-IngestionControllerTask"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:31.323000+00:00",
+   "type": "TaskScheduled",
+   "id": 3,
+   "previousEventId": 2,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-IngestionController\"}"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:31.363000+00:00",
+   "type": "TaskStarted",
+   "id": 4,
+   "previousEventId": 3,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.706000+00:00",
+   "type": "TaskFailed",
+   "id": 5,
+   "previousEventId": 4,
+   "taskFailedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "error": "Exception",
+    "cause": "{\"errorMessage\":\"Falló consulta de hits para [INBOUND] después de 3 intentos: 500 Server Error: Internal Server Error for url: https://api.cac1.pure.cloud/api/v2/analytics/conversations/details/query\",\"errorType\":\"Exception\",\"requestId\":\"6f3613f7-037e-4045-8c2c-570b6901b8ea\",\"stackTrace\":[\"  File \\\"/var/task/ingestion_controller.py\\\", line 157, in handler\\n    raise e\\n\",\"  File \\\"/var/task/ingestion_controller.py\\\", line 119, in handler\\n    tasks, total_campaigns = generate_tasks_unified(\\n\",\"  File \\\"/var/task/ingestion_controller.py\\\", line 303, in generate_tasks_unified\\n    inbound_hits = query_total_hits(conversations_url, headers, inbound_query, 'INBOUND')\\n\",\"  File \\\"/var/task/ingestion_controller.py\\\", line 528, in query_total_hits\\n    raise Exception(f\\\"Falló consulta de hits para [{label}] después de {max_retries} intentos: {last_error}\\\")\\n\"]}"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.719000+00:00",
+   "type": "TaskStateExited",
+   "id": 6,
+   "previousEventId": 5,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-IngestionControllerTask"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.719000+00:00",
+   "type": "TaskStateEntered",
+   "id": 7,
+   "previousEventId": 6,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-NotifyIngestionError"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.719000+00:00",
+   "type": "TaskScheduled",
+   "id": 8,
+   "previousEventId": 7,
+   "taskScheduledEventDetails": {
+    "resourceType": "sns",
+    "resource": "publish",
+    "region": "us-east-1",
+    "parameters": "{\"TopicArn\":\"arn:aws:sns:us-east-1:123456789012:BI-EMTSAS-GCRAW-Alerts\",\"Subject\":\"EMTSAS - IngestionController Error\",\"Message\":\"IngestionController FAILED: {Error=Exception, Cause={\\\"errorMessage\\\":\\\"Falló consulta de hits para [INBOUND] después de 3 intentos: 500 Server Error: Internal Server Error for url: https://api.cac1.pure.cloud/api/v2/analytics/conversations/details/query\\\",\\\"errorType\\\":\\\"Exception\\\",\\\"requestId\\\":\\\"6f3613f7-037e-4045-8c2c-570b6901b8ea\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/ingestion_controller.py\\\\\\\", line 157, in handler\\\\n    raise e\\\\n\\\",\\\"  File \\\\\\\"/var/task/ingestion_controller.py\\\\\\\", line 119, in handler\\\\n    tasks, total_campaigns = generate_tasks_unified(\\\\n\\\",\\\"  File \\\\\\\"/var/task/ingestion_controller.py\\\\\\\", line 303, in generate_tasks_unified\\\\n    inbound_hits = query_total_hits(conversations_url, headers, inbound_query, 'INBOUND')\\\\n\\\",\\\"  File \\\\\\\"/var/task/ingestion_controller.py\\\\\\\", line 528, in query_total_hits\\\\n    raise Exception(f\\\\\\\"Falló consulta de hits para [{label}] después de {max_retries} intentos: {last_error}\\\\\\\")\\\\n\\\"]}}\"}"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.777000+00:00",
+   "type": "TaskStarted",
+   "id": 9,
+   "previousEventId": 8,
+   "taskStartedEventDetails": {
+    "resourceType": "sns",
+    "resource": "publish"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.874000+00:00",
+   "type": "TaskSucceeded",
+   "id": 10,
+   "previousEventId": 9,
+   "taskSucceededEventDetails": {
+    "resourceType": "sns",
+    "resource": "publish"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.890000+00:00",
+   "type": "TaskStateExited",
+   "id": 11,
+   "previousEventId": 10,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-NotifyIngestionError"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.890000+00:00",
+   "type": "FailStateEntered",
+   "id": 12,
+   "previousEventId": 11,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FailIngestionController"
+   }
+  },
+  {
+   "timestamp": "2026-09-18T05:00:37.920000+00:00",
+   "type": "ExecutionFailed",
+   "id": 13,
+   "previousEventId": 12,
+   "executionFailedEventDetails": {
+    "error": "IngestionControllerError",
+    "cause": "IngestionController failed"
+   }
+  }
+ ]
+}
