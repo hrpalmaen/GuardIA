@@ -90,13 +90,13 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Table-driven tests covering each criterion of requirements 5 and 6.
   - _Requirements: 5.1, 5.3, 5.5, 5.6, 6.1_
 
-- [ ] 5.2 Implement the `RedriveOrRestart` Lambda
+- [x] 5.2 Implement the `RedriveOrRestart` Lambda
   - Redrive if the execution is Standard and eligible; otherwise a new execution with the original input.
   - IAM policy bounded by the `guardia:remediation=auto` tag condition.
   - Tests: redrive, relaunch, and rejection of a resource without the tag.
   - _Requirements: 5.1, 12.1, 12.4_
 
-- [ ] 5.3 Implement the `PollExecution` Lambda
+- [x] 5.3 Implement the `PollExecution` Lambda
   - Query the status of the recovered execution and return the final result.
   - Tests: `SUCCEEDED`, `FAILED`, and `RUNNING`.
   - _Requirements: 5.4_
