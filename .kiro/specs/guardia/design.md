@@ -125,9 +125,9 @@ sequenceDiagram
 
 | Component | Responsibility | Input → Output | Req. |
 |---|---|---|---|
-| `DiscoverProcesses` (Lambda) | Lists resources with `guardia:monitor=true`, validates the other 3 tags, and updates `ProcessRegistry` | 15-minute schedule → registry rows and warnings | 1 |
-| `OpenIncident` (Lambda) | Creates the incident idempotently (conditional write by execution ARN), enriches it with `DescribeExecution`, and starts the flow | Status event or `MissedRunWatchdog` event → incident + start of `GuardIA-Incident-Flow` | 2 |
-| `MissedRunWatchdog` (Lambda) | Computes expected executions from the cron expression and time zone; detects `MISSED_RUN` and `STUCK_RUN` | 5-minute schedule → incident events | 3 |
+| `DiscoverProcesses` (Lambda) | Lists resources with `guardia:monitor=true`, validates the other 3 tags, reads the schedules that launch each process (EventBridge rules that target it and EventBridge Scheduler schedules), computes the median duration, and updates `ProcessRegistry`; removes rows of processes no longer tagged | 15-minute schedule → registry rows and warnings | 1, 3 |
+| `OpenIncident` (Lambda) | Creates the incident idempotently (conditional write by execution ARN), enriches it with `DescribeExecution`, and starts the flow. Invoked by two EventBridge rules whose patterns are defined once in `guardia_common/incidents.py` (`STATUS_CHANGE_PATTERN`: `aws.states` status change with `FAILED`/`TIMED_OUT`/`ABORTED`; `WATCHDOG_PATTERN`: `source = guardia.watchdog`) | Status event or `MissedRunWatchdog` event → incident + start of `GuardIA-Incident-Flow` | 2 |
+| `MissedRunWatchdog` (Lambda) | Computes expected executions from the registry schedules; detects `MISSED_RUN` and `STUCK_RUN` and publishes each new detection to EventBridge (`source = guardia.watchdog`), which delivers it to `OpenIncident` | 5-minute schedule → detection events | 3 |
 | `ClassifyIncident` (Lambda) | Applies the catalog by (process type, cause) | Incident → `auto_recoverable`, `requires_escalation`, or `unknown` | 4 |
 | Bedrock agent | Classifies and summarizes causes outside the catalog; no actions on the infrastructure | Incident context → `AgentDecision` (validated JSON) | 4, 12 |
 | `RemediationPolicy` (library) | Pure function: given the incident, attempts, elapsed time, and remaining time, returns `REMEDIATE`, `REMEDIATE_AND_ESCALATE`, or `ESCALATE` | Incident state → decision | 5, 6 |
@@ -178,10 +178,12 @@ sequenceDiagram
 | `process_type` | String | `master` or `conversations` |
 | `organization` | String | Required |
 | `remediation` | String | `auto` or `escalate-only` (any other value is treated as `escalate-only`) |
-| `schedule_cron`, `timezone` | String | Used to compute expected executions |
-| `deadline_local` | String | Default `06:00` |
-| `median_duration_s` | Number | Median of the last 14 executions |
-| `last_seen_iso` | String | Timestamp of the last discovery |
+| `schedules` | List | Triggers read by `DiscoverProcesses`: `expression` (`cron(...)` or `rate(...)`), `timezone` (`UTC` for EventBridge rules, the schedule's zone for Scheduler), `source` (`events-rule` or `scheduler`), `name`. Only enabled triggers |
+| `timezone` | String | Business time zone for the SLA deadline; default from SSM. Set by an operator, kept by discovery |
+| `deadline_local` | String | Default `06:00`. Set by an operator, kept by discovery |
+| `median_duration_s` | Number | Median of the last 14 `SUCCEEDED` executions; absent with fewer than 5 |
+| `duration_samples` | Number | Executions used for the median |
+| `first_seen_iso`, `last_seen_iso` | String | First and last discovery. Scheduled runs before `first_seen_iso` are not reported as missed |
 
 **`Incidents`** — PK `incident_id`, unique index on `execution_arn`
 
@@ -251,6 +253,8 @@ Initial content: 429 → `wait_and_redrive`; 403 → `escalate`; 404 with a fail
 | D11 | Python 3.12 and AWS CDK in Python | Several languages or manual console | A single language for logic and infrastructure, and repeatable deployments |
 | D12 | Automatic incident closure when a later execution of the same process and organization ends in `SUCCEEDED` | Having the on-call engineer close the incident by hand | Without a reply channel, the most reliable signal that the problem is resolved is the process itself. The closure is recorded with its evidence |
 | D13 | No phone call, WhatsApp, or SMS in this version | Integration with Graph or with Genesys telephony | Higher cost, permissions, and complexity; Teams with mentions, reminders, and email covers the case. Other channels can be added later |
+| D14 | The schedule of each process is read from the EventBridge rule or Scheduler schedule that launches it, not from a tag | A fifth tag `guardia:schedule` | The tag can drift from the real trigger; onboarding stays at 4 tags. Rules are evaluated in UTC, Scheduler in its own zone, so each schedule keeps its zone separately from the SLA zone |
+| D15 | Watchdog rules: a run that starts after the 10-minute tolerance does not cover its scheduled time (`MISSED_RUN`, closed later by the success); without history (fewer than 5 runs) the maximum duration is 50% of the period that contains the start; `rate()` schedules have no fixed times, so they are only checked for `STUCK_RUN`; the watchdog checks the last 60 minutes so a skipped cycle loses nothing, and does not publish detections whose incident already exists | Counting a late start as on time | Follows requirement 3.1 literally; the thresholds are SSM parameters |
 
 ## 8. Security
 

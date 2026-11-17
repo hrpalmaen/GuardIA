@@ -1,0 +1,829 @@
+{
+ "events": [
+  {
+   "timestamp": "2026-11-13T16:00:31.296000+00:00",
+   "type": "ExecutionStarted",
+   "id": 1,
+   "previousEventId": 0,
+   "executionStartedEventDetails": {
+    "roleArn": "arn:aws:iam::123456789012:role/BI-EMTSAS-GCRAW-StepFunctionsRole"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:31.323000+00:00",
+   "type": "TaskStateEntered",
+   "id": 2,
+   "previousEventId": 0,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-IngestionControllerTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:31.323000+00:00",
+   "type": "TaskScheduled",
+   "id": 3,
+   "previousEventId": 2,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-IngestionController\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:31.358000+00:00",
+   "type": "TaskStarted",
+   "id": 4,
+   "previousEventId": 3,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.278000+00:00",
+   "type": "TaskSucceeded",
+   "id": 5,
+   "previousEventId": 4,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskStateExited",
+   "id": 6,
+   "previousEventId": 5,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-IngestionControllerTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 7,
+   "previousEventId": 6,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckTasksToProcess"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 8,
+   "previousEventId": 7,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckTasksToProcess"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapStateEntered",
+   "id": 9,
+   "previousEventId": 8,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapStateStarted",
+   "id": 10,
+   "previousEventId": 9,
+   "mapStateStartedEventDetails": {
+    "length": 5
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapIterationStarted",
+   "id": 11,
+   "previousEventId": 10,
+   "mapIterationStartedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 0
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapIterationStarted",
+   "id": 12,
+   "previousEventId": 10,
+   "mapIterationStartedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 1
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapIterationStarted",
+   "id": 13,
+   "previousEventId": 10,
+   "mapIterationStartedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 2
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "MapIterationStarted",
+   "id": 14,
+   "previousEventId": 10,
+   "mapIterationStartedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 3
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskStateEntered",
+   "id": 15,
+   "previousEventId": 11,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskScheduled",
+   "id": 16,
+   "previousEventId": 15,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-FetchRawConversations\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskStateEntered",
+   "id": 17,
+   "previousEventId": 12,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskScheduled",
+   "id": 18,
+   "previousEventId": 17,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-FetchRawConversations\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskStateEntered",
+   "id": 19,
+   "previousEventId": 13,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskScheduled",
+   "id": 20,
+   "previousEventId": 19,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-FetchRawConversations\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskStateEntered",
+   "id": 21,
+   "previousEventId": 14,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.297000+00:00",
+   "type": "TaskScheduled",
+   "id": 22,
+   "previousEventId": 21,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-FetchRawConversations\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.375000+00:00",
+   "type": "TaskStarted",
+   "id": 23,
+   "previousEventId": 18,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.378000+00:00",
+   "type": "TaskStarted",
+   "id": 24,
+   "previousEventId": 20,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.378000+00:00",
+   "type": "TaskStarted",
+   "id": 25,
+   "previousEventId": 22,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:46.378000+00:00",
+   "type": "TaskStarted",
+   "id": 26,
+   "previousEventId": 16,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.939000+00:00",
+   "type": "TaskSucceeded",
+   "id": 27,
+   "previousEventId": 25,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.964000+00:00",
+   "type": "TaskStateExited",
+   "id": 28,
+   "previousEventId": 27,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.964000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 29,
+   "previousEventId": 28,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.964000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 30,
+   "previousEventId": 29,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.964000+00:00",
+   "type": "TaskStateEntered",
+   "id": 31,
+   "previousEventId": 30,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:47.964000+00:00",
+   "type": "TaskScheduled",
+   "id": 32,
+   "previousEventId": 31,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-ProcessConversationSplitter\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.013000+00:00",
+   "type": "TaskStarted",
+   "id": 33,
+   "previousEventId": 32,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.923000+00:00",
+   "type": "TaskSucceeded",
+   "id": 34,
+   "previousEventId": 23,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.936000+00:00",
+   "type": "TaskStateExited",
+   "id": 35,
+   "previousEventId": 34,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.936000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 36,
+   "previousEventId": 35,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.936000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 37,
+   "previousEventId": 36,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.936000+00:00",
+   "type": "TaskStateEntered",
+   "id": 38,
+   "previousEventId": 37,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.936000+00:00",
+   "type": "TaskScheduled",
+   "id": 39,
+   "previousEventId": 38,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-ProcessConversationSplitter\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:48.987000+00:00",
+   "type": "TaskStarted",
+   "id": 40,
+   "previousEventId": 39,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.381000+00:00",
+   "type": "TaskSucceeded",
+   "id": 41,
+   "previousEventId": 24,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.394000+00:00",
+   "type": "TaskStateExited",
+   "id": 42,
+   "previousEventId": 41,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.394000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 43,
+   "previousEventId": 42,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.394000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 44,
+   "previousEventId": 43,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.394000+00:00",
+   "type": "TaskStateEntered",
+   "id": 45,
+   "previousEventId": 44,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.394000+00:00",
+   "type": "TaskScheduled",
+   "id": 46,
+   "previousEventId": 45,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-ProcessConversationSplitter\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.439000+00:00",
+   "type": "TaskStarted",
+   "id": 47,
+   "previousEventId": 46,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.446000+00:00",
+   "type": "TaskSucceeded",
+   "id": 48,
+   "previousEventId": 33,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.450000+00:00",
+   "type": "TaskStateExited",
+   "id": 49,
+   "previousEventId": 48,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.450000+00:00",
+   "type": "MapIterationSucceeded",
+   "id": 50,
+   "previousEventId": 49,
+   "mapIterationSucceededEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 3
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.450000+00:00",
+   "type": "MapIterationStarted",
+   "id": 51,
+   "previousEventId": 49,
+   "mapIterationStartedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 4
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.450000+00:00",
+   "type": "TaskStateEntered",
+   "id": 52,
+   "previousEventId": 51,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.450000+00:00",
+   "type": "TaskScheduled",
+   "id": 53,
+   "previousEventId": 52,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-FetchRawConversations\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.516000+00:00",
+   "type": "TaskStarted",
+   "id": 54,
+   "previousEventId": 53,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.873000+00:00",
+   "type": "TaskSucceeded",
+   "id": 55,
+   "previousEventId": 47,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.887000+00:00",
+   "type": "TaskStateExited",
+   "id": 56,
+   "previousEventId": 55,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.887000+00:00",
+   "type": "MapIterationSucceeded",
+   "id": 57,
+   "previousEventId": 56,
+   "mapIterationSucceededEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 2
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.952000+00:00",
+   "type": "TaskSucceeded",
+   "id": 58,
+   "previousEventId": 54,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "TaskStateExited",
+   "id": 59,
+   "previousEventId": 58,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 60,
+   "previousEventId": 59,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 61,
+   "previousEventId": 60,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "PassStateEntered",
+   "id": 62,
+   "previousEventId": 61,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-SkipSplitterNoRecords"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "PassStateExited",
+   "id": 63,
+   "previousEventId": 62,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-SkipSplitterNoRecords"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:49.967000+00:00",
+   "type": "MapIterationSucceeded",
+   "id": 64,
+   "previousEventId": 63,
+   "mapIterationSucceededEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 4
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:50.354000+00:00",
+   "type": "TaskSucceeded",
+   "id": 65,
+   "previousEventId": 40,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:50.368000+00:00",
+   "type": "TaskStateExited",
+   "id": 66,
+   "previousEventId": 65,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:00:50.368000+00:00",
+   "type": "MapIterationSucceeded",
+   "id": 67,
+   "previousEventId": 66,
+   "mapIterationSucceededEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 1
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.044000+00:00",
+   "type": "TaskSucceeded",
+   "id": 68,
+   "previousEventId": 26,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.059000+00:00",
+   "type": "TaskStateExited",
+   "id": 69,
+   "previousEventId": 68,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawConversationsTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.059000+00:00",
+   "type": "ChoiceStateEntered",
+   "id": 70,
+   "previousEventId": 69,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.059000+00:00",
+   "type": "ChoiceStateExited",
+   "id": 71,
+   "previousEventId": 70,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-CheckRecordsProcessed"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.059000+00:00",
+   "type": "TaskStateEntered",
+   "id": 72,
+   "previousEventId": 71,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.059000+00:00",
+   "type": "TaskScheduled",
+   "id": 73,
+   "previousEventId": 72,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-ProcessConversationSplitter\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:15.106000+00:00",
+   "type": "TaskStarted",
+   "id": 74,
+   "previousEventId": 73,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.850000+00:00",
+   "type": "TaskSucceeded",
+   "id": 75,
+   "previousEventId": 74,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "TaskStateExited",
+   "id": 76,
+   "previousEventId": 75,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-ProcessConversationSplitterTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "MapIterationSucceeded",
+   "id": 77,
+   "previousEventId": 76,
+   "mapIterationSucceededEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap",
+    "index": 0
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "MapStateSucceeded",
+   "id": 78,
+   "previousEventId": 77
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "MapStateExited",
+   "id": 79,
+   "previousEventId": 77,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-FetchRawDataMap"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "TaskStateEntered",
+   "id": 80,
+   "previousEventId": 79,
+   "stateEnteredEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-UpdateCheckpointTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.878000+00:00",
+   "type": "TaskScheduled",
+   "id": 81,
+   "previousEventId": 80,
+   "taskScheduledEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke",
+    "region": "us-east-1",
+    "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:123456789012:function:BI-EMTSAS-GCRAW-UpdateCheckpointStatus\"}"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:22.930000+00:00",
+   "type": "TaskStarted",
+   "id": 82,
+   "previousEventId": 81,
+   "taskStartedEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:24.219000+00:00",
+   "type": "TaskSucceeded",
+   "id": 83,
+   "previousEventId": 82,
+   "taskSucceededEventDetails": {
+    "resourceType": "lambda",
+    "resource": "invoke"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:24.233000+00:00",
+   "type": "TaskStateExited",
+   "id": 84,
+   "previousEventId": 83,
+   "stateExitedEventDetails": {
+    "name": "BI-EMTSAS-GCRAW-UpdateCheckpointTask"
+   }
+  },
+  {
+   "timestamp": "2026-11-13T16:01:24.265000+00:00",
+   "type": "ExecutionSucceeded",
+   "id": 85,
+   "previousEventId": 84,
+   "executionSucceededEventDetails": {}
+  }
+ ]
+}

@@ -1,0 +1,85 @@
+{
+ "description": "Real executions of the Genesys extraction processes, sanitized by scripts/sanitize_executions.py. Tags are those GuardIA expects; guardia:remediation=auto is an assumption until the owners confirm idempotency. Schedules are assumed from the observed start times (hourly at :30 for EMT12, at :00 for EMT22 and EMTSAS) until the owners confirm the EventBridge rules (finding H8).",
+ "state_machines": [
+  {
+   "arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail",
+   "name": "BI-EMT12-GCRAW-Orchestrator-ConversationsDetail",
+   "tags": {
+    "guardia:monitor": "true",
+    "guardia:process-type": "conversations",
+    "guardia:organization": "EMT12",
+    "guardia:remediation": "auto"
+   },
+   "schedule": "cron(30 * * * ? *)"
+  },
+  {
+   "arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT22-GCRAW-Orchestrator-ConversationsDetail",
+   "name": "BI-EMT22-GCRAW-Orchestrator-ConversationsDetail",
+   "tags": {
+    "guardia:monitor": "true",
+    "guardia:process-type": "conversations",
+    "guardia:organization": "EMT22",
+    "guardia:remediation": "auto"
+   },
+   "schedule": "cron(0 * * * ? *)"
+  },
+  {
+   "arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail",
+   "name": "BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail",
+   "tags": {
+    "guardia:monitor": "true",
+    "guardia:process-type": "conversations",
+    "guardia:organization": "EMTSAS",
+    "guardia:remediation": "auto"
+   },
+   "schedule": "cron(0 * * * ? *)"
+  }
+ ],
+ "executions": [
+  {
+   "id": "emt12-20260923-2230-failed",
+   "execution_arn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail:5f2b5730-8dc4-b493-7e0e-93d6ec7ea092_f1dac3f2-044a-9ab2-2378-f90d9d2e545e",
+   "state_machine_arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail",
+   "status": "FAILED",
+   "start_date": "2026-09-23T22:30:02.352000+00:00",
+   "stop_date": "2026-09-23T22:36:58.151000+00:00",
+   "events": 990
+  },
+  {
+   "id": "emt12-20261113-1630-succeeded",
+   "execution_arn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail:3b094ccc-3395-70c2-d6e6-c6dc9ec2b789_50f4f736-8d1e-3f68-8d57-518ee86c1085",
+   "state_machine_arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail",
+   "status": "SUCCEEDED",
+   "start_date": "2026-11-13T16:30:02.241000+00:00",
+   "stop_date": "2026-11-13T16:32:25.296000+00:00",
+   "events": 827
+  },
+  {
+   "id": "emt22-20261113-1600-succeeded",
+   "execution_arn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMT22-GCRAW-Orchestrator-ConversationsDetail:34616241-b45a-9bad-d978-e208b3612d17_77ef23a3-4078-0f83-0f6c-a0c9ce0ed727",
+   "state_machine_arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT22-GCRAW-Orchestrator-ConversationsDetail",
+   "status": "SUCCEEDED",
+   "start_date": "2026-11-13T16:00:23.314000+00:00",
+   "stop_date": "2026-11-13T16:00:38.921000+00:00",
+   "events": 57
+  },
+  {
+   "id": "emtsas-20260918-0500-failed",
+   "execution_arn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail:e5b99267-cbf0-2e4d-785c-e34f730d460d_75703f17-133e-908c-5a77-4368d17b8a44",
+   "state_machine_arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail",
+   "status": "FAILED",
+   "start_date": "2026-09-18T05:00:31.301000+00:00",
+   "stop_date": "2026-09-18T05:00:37.920000+00:00",
+   "events": 13
+  },
+  {
+   "id": "emtsas-20261113-1600-succeeded",
+   "execution_arn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail:8151c682-d98d-9982-35ed-bdb7b6f141db_24241b2c-4f9b-ba00-46e9-f85028ad30e9",
+   "state_machine_arn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMTSAS-GCRAW-Orchestrator-ConversationsDetail",
+   "status": "SUCCEEDED",
+   "start_date": "2026-11-13T16:00:31.296000+00:00",
+   "stop_date": "2026-11-13T16:01:24.265000+00:00",
+   "events": 85
+  }
+ ]
+}

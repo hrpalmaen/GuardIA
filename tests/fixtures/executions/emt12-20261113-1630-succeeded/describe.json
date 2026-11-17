@@ -1,0 +1,15 @@
+{
+ "executionArn": "arn:aws:states:us-east-1:123456789012:execution:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail:3b094ccc-3395-70c2-d6e6-c6dc9ec2b789_50f4f736-8d1e-3f68-8d57-518ee86c1085",
+ "stateMachineArn": "arn:aws:states:us-east-1:123456789012:stateMachine:BI-EMT12-GCRAW-Orchestrator-ConversationsDetail",
+ "name": "3b094ccc-3395-70c2-d6e6-c6dc9ec2b789_50f4f736-8d1e-3f68-8d57-518ee86c1085",
+ "status": "SUCCEEDED",
+ "startDate": "2026-11-13T16:30:02.241000+00:00",
+ "stopDate": "2026-11-13T16:32:25.296000+00:00",
+ "input": "{\"source\":\"scheduled\",\"intervalStart\":\"\",\"intervalEnd\":\"\",\"attributesOneByOne\":false,\"bucketName\":\"\",\"s3Prefix\":\"\",\"prefix\":\"\"}",
+ "inputDetails": {
+  "included": true
+ },
+ "redriveCount": 0,
+ "redriveStatus": "NOT_REDRIVABLE",
+ "redriveStatusReason": "Execution is SUCCEEDED and cannot be redriven"
+}

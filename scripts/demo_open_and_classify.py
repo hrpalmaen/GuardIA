@@ -5,6 +5,10 @@ credentials. It creates the tables, publishes the SSM thresholds from
 `infra/config.py`, loads `data/error_catalog.json`, and runs the scenarios
 of a night at 04:00 Bogota time.
 
+The first scenarios replay real executions of the Genesys conversations process
+(tests/fixtures/executions): the same OpenIncident and ClassifyIncident code
+reads them through `ReplayStepFunctionsClient`, which has the boto3 interface.
+
     pip install -e ".[dev]"
     python scripts/demo_open_and_classify.py
 """
@@ -38,6 +42,10 @@ from load_error_catalog import load_catalog, read_catalog  # noqa: E402
 from moto import mock_aws  # noqa: E402
 
 from config import DEFAULT_THRESHOLDS, SSM_PREFIX  # noqa: E402
+from guardia_common.tables import create_local_tables  # noqa: E402
+from guardia_local.events import status_change_event  # noqa: E402
+from guardia_local.fixtures import ExecutionFixtures  # noqa: E402
+from guardia_local.stepfunctions import ReplayStepFunctionsClient  # noqa: E402
 from lambdas.classify_incident.handler import Deps as ClassifyDeps  # noqa: E402
 from lambdas.classify_incident.handler import classify_incident  # noqa: E402
 from lambdas.open_incident.handler import Deps as OpenDeps  # noqa: E402
@@ -53,12 +61,6 @@ PROCESSES = [
     ("genesys-conversations-orgB", "conversations", "OrgB", "auto"),
     ("genesys-conversations-orgC", "conversations", "OrgC", "escalate-only"),
 ]
-KEYS = {
-    "Incidents": [("incident_id", "HASH")],
-    "ProcessRegistry": [("resource_arn", "HASH")],
-    "IncidentEvents": [("incident_id", "HASH"), ("sk", "RANGE")],
-    "ErrorCatalog": [("process_type", "HASH"), ("error_pattern", "RANGE")],
-}
 
 
 def at(hh_mm: str) -> datetime:
@@ -84,7 +86,27 @@ def failed(machine, run, start, stop, error, cause, status="FAILED"):
     }
 
 
+# Real executions moved to the demo night, keeping their real durations.
+REAL = ExecutionFixtures.load()
+for fixture_id, start in (
+    ("emtsas-20260918-0500-failed", "00:00"),
+    ("emt12-20260923-2230-failed", "02:23"),
+    ("emt22-20261113-1600-succeeded", "03:00"),
+):
+    REAL = REAL.with_start(fixture_id, at(start))
+
+
+def real(fixture_id: str) -> dict:
+    return status_change_event(REAL.by_id(fixture_id).describe_response())
+
+
 SCENARIOS = [
+    ("REAL · EMTSAS 18-sep: Genesys 500 tras 3 reintentos",
+     real("emtsas-20260918-0500-failed"), "00:01"),
+    ("REAL · EMT12 23-sep: OOM oculto tras States.Runtime",
+     real("emt12-20260923-2230-failed"), "02:30"),
+    ("REAL · EMT22 13-nov: ejecución exitosa",
+     real("emt22-20261113-1600-succeeded"), "03:00"),
     ("Genesys 429 en master OrgA",
      failed("genesys-master-orgA", "r-0330", "03:30", "04:00", "Genesys.ApiError",
             '{"status": 429, "message": "Too Many Requests"}'), "04:00"),
@@ -119,16 +141,7 @@ NEXT_STEP = {
 
 def main() -> None:
     with mock_aws():
-        dynamodb = boto3.resource("dynamodb")
-        tables = {
-            name: dynamodb.create_table(
-                TableName=name,
-                KeySchema=[{"AttributeName": k, "KeyType": t} for k, t in keys],
-                AttributeDefinitions=[{"AttributeName": k, "AttributeType": "S"} for k, _ in keys],
-                BillingMode="PAY_PER_REQUEST",
-            )
-            for name, keys in KEYS.items()
-        }
+        tables = create_local_tables(boto3.resource("dynamodb"))
         for machine, ptype, org, remediation in PROCESSES:
             tables["ProcessRegistry"].put_item(Item={
                 "resource_arn": f"{SM}:{machine}", "process_type": ptype,
@@ -137,13 +150,22 @@ def main() -> None:
         ssm = boto3.client("ssm")
         for name, value in DEFAULT_THRESHOLDS.items():
             ssm.put_parameter(Name=f"{SSM_PREFIX}/{name}", Value=value, Type="String")
+        for sm in REAL.state_machines.values():
+            tables["ProcessRegistry"].put_item(Item={
+                "resource_arn": sm.arn,
+                "process_type": sm.tags["guardia:process-type"],
+                "organization": sm.tags["guardia:organization"],
+                "remediation": sm.tags["guardia:remediation"],
+            })  # fmt: skip
         load_catalog(tables["ErrorCatalog"], read_catalog())
-        sfn = boto3.client("stepfunctions")
-        flow_arn = sfn.create_state_machine(
+        moto_sfn = boto3.client("stepfunctions")
+        flow_arn = moto_sfn.create_state_machine(
             name="GuardIA-Incident-Flow",
             definition=json.dumps({"StartAt": "Done", "States": {"Done": {"Type": "Succeed"}}}),
             roleArn=f"arn:aws:iam::{ACCOUNT}:role/guardia-flow",
         )["stateMachineArn"]
+        # Real executions come from the fixtures; GuardIA-Incident-Flow lives in moto.
+        sfn = ReplayStepFunctionsClient(REAL, fallback=moto_sfn)
 
         open_deps = OpenDeps(tables["Incidents"], tables["ProcessRegistry"],
                              tables["IncidentEvents"], sfn, ssm, flow_arn)  # fmt: skip
@@ -167,6 +189,9 @@ def main() -> None:
             if not opened["created"]:
                 print("                       duplicado: no se crea otro incidente ni otro flujo")
                 continue
+            if inc.get("root_error"):
+                print(f"   Causa raíz       -> {inc['root_error']} en {inc['failed_state']}"
+                      f"  (error final: {inc['error']})")  # fmt: skip
             out = classify_incident({"incident_id": opened["incident_id"]}, classify_deps,
                                     now=at(clock))  # fmt: skip
             print(f"   ClassifyIncident -> {out['classification']}"

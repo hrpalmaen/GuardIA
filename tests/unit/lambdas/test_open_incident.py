@@ -162,7 +162,8 @@ def test_flow_is_started_with_the_incident_contract(aws, deps):
     assert execution["name"] == out["incident_id"]
     assert set(payload) == {
         "incident_id", "execution_arn", "organization", "process_type", "kind",
-        "error", "cause", "deadline_iso", "remediation",
+        "error", "cause", "root_error", "root_cause", "failed_state",
+        "deadline_iso", "remediation",
     }  # fmt: skip
 
 

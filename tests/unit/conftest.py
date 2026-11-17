@@ -13,6 +13,7 @@ from moto import mock_aws
 
 from config import DEFAULT_THRESHOLDS, SSM_PREFIX
 from guardia_common import config as guardia_config
+from guardia_common.tables import create_local_tables
 
 REGION = "us-east-1"
 ACCOUNT = "123456789012"
@@ -21,13 +22,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 SM_PREFIX = f"arn:aws:states:{REGION}:{ACCOUNT}:stateMachine"
 EXEC_PREFIX = f"arn:aws:states:{REGION}:{ACCOUNT}:execution"
-
-TABLE_KEYS = {
-    "Incidents": [("incident_id", "HASH")],
-    "ProcessRegistry": [("resource_arn", "HASH")],
-    "IncidentEvents": [("incident_id", "HASH"), ("sk", "RANGE")],
-    "ErrorCatalog": [("process_type", "HASH"), ("error_pattern", "RANGE")],
-}
 
 PROCESSES = [
     {"resource_arn": f"{SM_PREFIX}:genesys-master-orgA", "process_type": "master",
@@ -89,15 +83,7 @@ def _aws_credentials(monkeypatch):
 @pytest.fixture
 def aws():
     with mock_aws():
-        dynamodb = boto3.resource("dynamodb", region_name=REGION)
-        tables = {}
-        for name, keys in TABLE_KEYS.items():
-            tables[name] = dynamodb.create_table(
-                TableName=name,
-                KeySchema=[{"AttributeName": k, "KeyType": t} for k, t in keys],
-                AttributeDefinitions=[{"AttributeName": k, "AttributeType": "S"} for k, _ in keys],
-                BillingMode="PAY_PER_REQUEST",
-            )
+        tables = create_local_tables(boto3.resource("dynamodb", region_name=REGION))
         for row in PROCESSES:
             tables["ProcessRegistry"].put_item(Item=row)
 
@@ -121,3 +107,35 @@ def catalog_loaded(aws):
 
     load_catalog(aws["tables"]["ErrorCatalog"], read_catalog())
     return aws
+
+
+# --------------------------------------------------------------------------- #
+# Real executions (tests/fixtures/executions, sanitized by scripts/sanitize_executions.py)
+# --------------------------------------------------------------------------- #
+EMTSAS_500 = "emtsas-20260918-0500-failed"  # Genesys 500 in IngestionController
+EMT12_OOM = "emt12-20260923-2230-failed"  # OOM in the Map, hidden by States.Runtime
+REAL_SUCCEEDED = (
+    "emt12-20261113-1630-succeeded",
+    "emt22-20261113-1600-succeeded",
+    "emtsas-20261113-1600-succeeded",
+)
+
+
+@pytest.fixture(scope="session")
+def real_executions():
+    from guardia_local.fixtures import ExecutionFixtures
+
+    return ExecutionFixtures.load()
+
+
+def registry_rows(fixtures) -> list[dict]:
+    """ProcessRegistry rows as DiscoverProcesses will write them from the guardia:* tags."""
+    return [
+        {
+            "resource_arn": sm.arn,
+            "process_type": sm.tags["guardia:process-type"],
+            "organization": sm.tags["guardia:organization"],
+            "remediation": sm.tags["guardia:remediation"],
+        }
+        for sm in fixtures.state_machines.values()
+    ]

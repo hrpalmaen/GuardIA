@@ -30,3 +30,51 @@ def test_every_threshold_is_an_ssm_parameter(template: Template) -> None:
 def test_default_deadline_matches_design() -> None:
     assert DEFAULT_THRESHOLDS["deadline-local"] == "06:00"
     assert DEFAULT_THRESHOLDS["timezone"] == "America/Bogota"
+
+
+# --------------------------------------------------------------------------- 1.2
+from guardia_common.tables import EXECUTION_ARN_INDEX, TABLES  # noqa: E402
+
+
+def _tables(template: Template) -> dict:
+    return template.find_resources("AWS::DynamoDB::Table")
+
+
+@pytest.mark.req("10.2")
+def test_every_shared_table_is_created_with_its_keys(template: Template) -> None:
+    resources = list(_tables(template).values())
+    assert len(resources) == len(TABLES)
+    for spec in TABLES.values():
+        keys = [{"AttributeName": spec.partition_key, "KeyType": "HASH"}]
+        if spec.sort_key:
+            keys.append({"AttributeName": spec.sort_key, "KeyType": "RANGE"})
+        assert any(r["Properties"]["KeySchema"] == keys for r in resources), spec.name
+
+
+@pytest.mark.req("10.2")
+def test_tables_are_encrypted_with_the_customer_key(template: Template) -> None:
+    for resource in _tables(template).values():
+        sse = resource["Properties"]["SSESpecification"]
+        assert sse["SSEEnabled"] is True and sse["SSEType"] == "KMS"
+        assert "KMSMasterKeyId" in sse
+
+
+def test_incidents_has_the_execution_arn_index(template: Template) -> None:
+    template.has_resource_properties("AWS::DynamoDB::Table", {
+        "KeySchema": [{"AttributeName": "incident_id", "KeyType": "HASH"}],
+        "GlobalSecondaryIndexes": [{
+            "IndexName": EXECUTION_ARN_INDEX,
+            "KeySchema": [{"AttributeName": "execution_arn", "KeyType": "HASH"}],
+            "Projection": {"ProjectionType": "ALL"},
+        }],
+    })  # fmt: skip
+
+
+@pytest.mark.req("10.3")
+def test_incident_events_has_ttl_and_point_in_time_recovery(template: Template) -> None:
+    template.has_resource_properties("AWS::DynamoDB::Table", {
+        "KeySchema": [{"AttributeName": "incident_id", "KeyType": "HASH"},
+                      {"AttributeName": "sk", "KeyType": "RANGE"}],
+        "TimeToLiveSpecification": {"AttributeName": "expires_at", "Enabled": True},
+        "PointInTimeRecoverySpecification": {"PointInTimeRecoveryEnabled": True},
+    })  # fmt: skip

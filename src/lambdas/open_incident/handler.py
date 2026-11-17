@@ -1,7 +1,11 @@
 """OpenIncident (task 3.1 · requirements 2.2, 2.3, 2.4).
 
-Opens exactly one incident per execution, enriches it with DescribeExecution,
-records it in IncidentEvents, and starts GuardIA-Incident-Flow.
+Opens exactly one incident per execution, enriches it with DescribeExecution
+and with the root cause from GetExecutionHistory, records it in IncidentEvents,
+and starts GuardIA-Incident-Flow.
+
+`Deps.sfn` is any client with the boto3 `stepfunctions` interface: the real
+client in AWS, or `guardia_local.stepfunctions.ReplayStepFunctionsClient` locally.
 
 Environment:
     INCIDENTS_TABLE, PROCESS_REGISTRY_TABLE, INCIDENT_EVENTS_TABLE, INCIDENT_FLOW_ARN
@@ -26,6 +30,7 @@ from guardia_common.config import get_threshold, load_thresholds
 from guardia_common.incidents import Detection, build_incident, parse_detection
 from guardia_common.logger import get_logger, log
 from guardia_common.models import Incident, ProcessRecord
+from guardia_common.root_cause import RootCause, extract_root_cause, fetch_history
 from guardia_common.schedule import minutes_until, parse_timestamp
 
 LOGGER = get_logger("guardia.open_incident")
@@ -34,7 +39,8 @@ ACTOR = "OpenIncident"
 # Fields of the incident event contract (design.md §3) sent to the flow.
 CONTRACT_FIELDS = (
     "incident_id", "execution_arn", "organization", "process_type", "kind",
-    "error", "cause", "deadline_iso", "remediation",
+    "error", "cause", "root_error", "root_cause", "failed_state",
+    "deadline_iso", "remediation",
 )  # fmt: skip
 
 
@@ -72,6 +78,32 @@ def _enrich(detection: Detection, sfn: Any) -> tuple[Detection, bool]:
         started_at=parse_timestamp(info.get("startDate")) or detection.started_at,
         stopped_at=parse_timestamp(info.get("stopDate")) or detection.stopped_at,
     ), True
+
+
+def _root_cause(detection: Detection, sfn: Any) -> tuple[Detection, RootCause | None]:
+    """Adds the root cause from the execution history. Like `_enrich`, a failed
+    call never blocks the incident: it keeps the final error only."""
+    if detection.source != "eventbridge" or not detection.execution_arn:
+        return detection, None
+    try:
+        root = extract_root_cause(fetch_history(sfn, detection.execution_arn))
+    except ClientError as err:
+        log(
+            LOGGER,
+            logging.WARNING,
+            "GetExecutionHistory failed; classifying with the final error only",
+            execution_arn=detection.execution_arn,
+            error_code=err.response["Error"]["Code"],
+        )
+        return detection, None
+    if root is None:
+        return detection, None
+    return replace(
+        detection,
+        root_error=root.error,
+        root_cause=root.message,
+        failed_state=root.state_name,
+    ), root
 
 
 def _flow_input(incident: Incident) -> dict:
@@ -122,6 +154,7 @@ def open_incident(event: dict, deps: Deps, now: datetime | None = None) -> dict:
     process = ProcessRecord.from_item(row)
 
     detection, enriched = _enrich(detection, deps.sfn)
+    detection, root = _root_cause(detection, deps.sfn)
     thresholds = load_thresholds(deps.ssm)
     incident = build_incident(
         detection,
@@ -161,6 +194,7 @@ def open_incident(event: dict, deps: Deps, now: datetime | None = None) -> dict:
                 "deadline_iso": incident.deadline_iso,
                 "minutes_left": minutes_left,
                 "enriched_with_describe_execution": enriched,
+                "root_cause": root.as_dict() if root else None,
             },
             now=now,
         )
