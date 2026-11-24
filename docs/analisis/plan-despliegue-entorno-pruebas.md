@@ -28,6 +28,9 @@ Llevar GuardIA, que hoy corre en local con moto, a una cuenta real de AWS para p
 | P8 | **`STUCK_RUN` siempre escala**, igual que `MISSED_RUN`: cancelar o relanzar una ejecución que sigue corriendo no es seguro sin hablar con el dueño | 2026-11-24 |
 | P9 | **`DailySummary` (7.2 y 7.3) queda fuera de la Fase B**: no bloquea las pruebas de punta a punta | 2026-11-24 |
 | P10 | Responsables de los PR de la Fase B según la tabla de la sección B6 | 2026-11-24 |
+| P11 | **El agente de IA entra ahora y no al final:** la solución debe ser agéntica. Sigue la arquitectura inicial: **el agente recomienda y la política determinista decide**. El agente investiga con herramientas de solo lectura, nunca ejecuta acciones (12.2) y no tiene permisos sobre la infraestructura. Ficha T8 en `tareas-fase-b-equipo.md` | 2026-11-24 |
+| P12 | **Azure OpenAI en las pruebas** (`analytics`, `env=dev`) con un despliegue de GPT-4.1 mini. La cuenta de Azure ya cuenta con la aprobación de privacidad de la compañía, así que en el demo no hace falta otra aprobación para enviarle la causa saneada. El endpoint, el despliegue y la llave van en el secreto `guardia/agent-azure-openai`, nunca en el repositorio ni en el chat | 2026-11-24 |
+| P13 | **Workshop en otra cuenta de AWS con Amazon Bedrock:** entorno nuevo `env=workshop`, con simulador y `DESTROY`. El modelo se elige entre los habilitados en esa cuenta | 2026-11-24 |
 
 ## 3. Arquitectura en la cuenta de pruebas
 
@@ -206,6 +209,8 @@ Cada PR se despliega en `analytics` al terminar.
 | 5 | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED` y `ResolveOnSuccess` | Tarjetas en el canal real | Laura |
 | 6 | `GuardIA-Observability` | Alarmas, heartbeat y correo de SNS | Por definir |
 
+**Reparto del trabajo:** cada PR pendiente tiene su ficha detallada, lista para trabajarla con Claude, en [`tareas-fase-b-equipo.md`](tareas-fase-b-equipo.md). Además hay dos tareas cortas nuevas: T0 (pendientes de repositorio) y T1 (el esqueleto del flujo, que permite hacer los PR 4, 5 y 6 en paralelo).
+
 **Fuera de la Fase B (P9):** `DailySummary` y su envío (7.2 y 7.3), la agrupación (6.6) y el agente (4.2 y 4.3).
 
 ### Fase C · Simulador en la nube (solo pruebas)
@@ -236,19 +241,25 @@ El reloj de la nube es real y no se puede comprimir la noche. Por eso, en prueba
 - **Qué hay que confirmar antes con los dueños:** los crons reales (H8), que el redrive es seguro (`guardia:remediation=auto`) y quién recibe hoy las alertas por SNS (H9).
 - **Salida gradual:** primero unos días en **modo solo observación**, en el que GuardIA abre incidentes y avisa pero no hace redrive. Después se activa el redrive automático, proceso por proceso. Esto requiere un umbral `remediation-enabled` en SSM.
 
-## 6. IA (después de la primera versión)
+## 6. IA (adelantada a la Fase B por P11; el detalle está en la ficha T8)
 
-- **Interfaz:** `AgentPort` recibe el contexto ya saneado del incidente y devuelve un `AgentDecision` validado (el contrato de `design.md`). Cualquier respuesta que no cumpla el contrato se rechaza y el incidente se escala.
-- **Adaptadores:** `BedrockAgent` y `AzureAgent`. Para la clasificación y el diagnóstico conviene un modelo general (Claude o GPT); los modelos de código como Codex no son los adecuados.
-- **Si es Azure, antes hay que resolver:**
-  - **Datos:** la aprobación de que la causa del error, ya recortada y sin tokens (H3 y H4), salga de AWS.
-  - **Red:** la salida a internet de la Lambda.
-  - **Credenciales:** la llave del modelo en Secrets Manager.
+- **Principio (arquitectura inicial):** el agente recomienda y la política determinista decide. El agente investiga con herramientas de solo lectura, nunca ejecuta acciones y no tiene permisos sobre la infraestructura (12.2, D24).
+- **Interfaz:** `AgentPort` es un ciclo de herramientas que no depende del proveedor. La respuesta final es una llamada a `submit_decision`, validada como `AgentDecision`. Una respuesta inválida, más de 30 s, una acción fuera de la lista o poca confianza llevan a escalar el incidente.
+- **Adaptadores:**
+  - **Azure OpenAI** (GPT-4.1 mini) en `dev`/`analytics` (P12).
+  - **Amazon Bedrock** (API Converse) en el workshop (P13).
+- **Azure, resuelto:**
+  - **Datos:** la cuenta ya tiene la aprobación de privacidad (P12). Igual se envía lo mínimo y saneado: nunca las entradas ni las salidas de los pasos.
+  - **Red:** las Lambdas sin VPC ya tienen salida a internet.
+  - **Credenciales:** el secreto `guardia/agent-azure-openai`, que se carga desde el `.env` con `scripts/load_agent_secret.py`.
+- **Bedrock, pendiente:** en la cuenta del workshop hay que hacer `cdk bootstrap` y habilitar el acceso al modelo.
 
 ## 7. Riesgos
 
 | Riesgo | Mitigación |
 |---|---|
+| El agente se equivoca o es manipulado por un texto dentro de un log (*prompt injection*) | Solo recomienda: su sugerencia pasa por todas las reglas de la política (etiqueta, intentos, ventana, espera y modo solo observación), las herramientas son de solo lectura y no eligen recursos, y la salida se valida contra un contrato cerrado |
+| Azure no responde o se acaba la cuota | `InvokeAgent` nunca rompe el flujo: registra `AGENT_FAILED` y el incidente se escala sin diagnóstico de IA |
 | El simulador no se comporta igual que los procesos reales en algún detalle no visible en el historial | Los supuestos quedan anotados (sección 4). El modo solo observación en producción lo detecta antes de remediar |
 | Alguien despliega `GuardIA-Sim` en producción | El stack se niega a desplegarse con `env=prod` y las etiquetas lo identifican |
 | Teams caído durante un incidente: sin correo de respaldo (P7), nadie recibe la tarjeta | La alarma llega al equipo por correo de SNS; el incidente queda en `NOTIFICATION_FAILED` y se puede reenviar |
