@@ -139,7 +139,8 @@ def test_dev_thresholds_are_published_for_the_test_account() -> None:
     stack = DataStack(cdk.App(), "GuardIA-Data-Dev", thresholds=dev.thresholds)
     template = Template.from_stack(stack)
     template.has_resource_properties("AWS::SSM::Parameter", {
-        "Name": f"{SSM_PREFIX}/reminder-interval-minutes", "Value": "2",
+        "Name": f"{SSM_PREFIX}/reminder-interval-minutes",
+        "Value": dev.thresholds["reminder-interval-minutes"],
     })  # fmt: skip
     template.has_resource_properties("AWS::SSM::Parameter", {
         "Name": f"{SSM_PREFIX}/remediation-enabled", "Value": "true",

@@ -38,14 +38,24 @@ from components.function import GuardiaFunction
 
 from .flow_context import FlowContext
 
-POLL_INTERVAL = Duration.minutes(3)
+POLL_INTERVAL_SECONDS = 180  # `redrive-poll-interval-seconds`; the demo environments shorten it
 MAX_POLLS = 10  # 30 minutes, longer than the 20-minute remediation window
+POLL_BUDGET_SECONDS = MAX_POLLS * POLL_INTERVAL_SECONDS
 REMEDIATION_TAG_CONDITION = {
     "StringEquals": {"aws:ResourceTag/guardia:remediation": "auto"}
 }  # 12.1, 12.4; executions inherit the state machine tags
 RECOVERY_REJECTED = ["RemediationNotAllowedError", "AttemptsExhaustedError"]
 
 Escalate = Callable[[str, sfn.IChainable], sfn.IChainable]
+
+
+def poll_settings(ctx: FlowContext) -> tuple[int, int]:
+    """(seconds between polls, maximum polls). A shorter interval keeps the same time
+    budget (30 minutes), so a fast demo never gives up on a slower redrive."""
+    interval = int(ctx.thresholds.get("redrive-poll-interval-seconds", POLL_INTERVAL_SECONDS))
+    if interval < 1:
+        raise ValueError("redrive-poll-interval-seconds must be at least 1")
+    return interval, max(MAX_POLLS, -(-POLL_BUDGET_SECONDS // interval))
 
 
 @dataclass
@@ -149,8 +159,11 @@ def _recovery_loop(
         result_path="$.poll",
         retry_on_service_exceptions=True,
     )
+    poll_seconds, max_polls = poll_settings(ctx)
     wait_before_poll = sfn.Wait(
-        scope, f"{prefix}WaitBeforePoll", time=sfn.WaitTime.duration(POLL_INTERVAL)
+        scope,
+        f"{prefix}WaitBeforePoll",
+        time=sfn.WaitTime.duration(Duration.seconds(poll_seconds)),
     )
     count_poll = sfn.Pass(
         scope,
@@ -173,7 +186,7 @@ def _recovery_loop(
         )
         .when(sfn.Condition.boolean_equals("$.poll.done", True), after_failure)
         .when(
-            sfn.Condition.number_less_than("$.polls.count", MAX_POLLS),
+            sfn.Condition.number_less_than("$.polls.count", max_polls),
             count_poll.next(wait_before_poll),
         )
         .otherwise(after_failure)

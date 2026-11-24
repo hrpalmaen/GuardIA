@@ -119,6 +119,22 @@ On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
 virtual environment on the Linux file system as above: a `.venv` inside the
 repository makes the test suite about 40 times slower.
 
+### Fast demo (dev and workshop)
+
+The environments with the simulator wait seconds, not minutes (D33). A failure the flow can
+recover (`http500`, `429`, `oom`) is redriven, polled every 5 s, and resolved in well under a
+minute, and an escalation sends its reminders every 30 s. Production keeps the real values.
+
+Missed and stuck runs still wait for the watchdog (every 5 minutes, plus 1 minute of tolerance).
+In a live demo, start the scenario beforehand or invoke the watchdog by hand right after the
+scenario is ready:
+
+```bash
+FN=$(aws cloudformation list-stack-resources --profile analytics --stack-name GuardIA-Detection \
+  --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && contains(LogicalResourceId,'MissedRunWatchdog')].PhysicalResourceId" --output text)
+aws lambda invoke --profile analytics --function-name "$FN" /dev/null
+```
+
 ### AI agent (T8)
 
 The agent investigates an incident with read-only tools and **recommends**; the policy
