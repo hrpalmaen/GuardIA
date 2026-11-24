@@ -211,7 +211,7 @@ Cada PR se despliega en `analytics` al terminar.
 | 3 | **Fase C en paralelo:** `GuardIA-Sim` | La noche real en la nube, en Nivel 0 | Por definir |
 | 4 ✅ | `RemediationPolicy`, regla de `STUCK_RUN` y la rama de recuperación | Redrive real contra Sim (pendiente de T3) | Hellen |
 | 5 | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED` y `ResolveOnSuccess` (código y pruebas listos; falta desplegar y probar en el canal) | Tarjetas en el canal real | Laura |
-| 6 | `GuardIA-Observability` | Alarmas, heartbeat y correo de SNS | Por definir |
+| 6 | `GuardIA-Observability` (código y pruebas listos; falta desplegar y aceptar el correo de SNS) | Alarmas, heartbeat y correo de SNS | Camila (despliega Hellen) |
 
 **Reparto del trabajo:** cada PR pendiente tiene su ficha detallada, lista para trabajarla con Claude, en [`tareas-fase-b-equipo.md`](tareas-fase-b-equipo.md). Además hay dos tareas cortas nuevas: T0 (pendientes de repositorio) y T1 (el esqueleto del flujo, que permite hacer los PR 4, 5 y 6 en paralelo).
 

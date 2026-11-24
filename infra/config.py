@@ -214,3 +214,24 @@ def oncall_from_environment(environ: Mapping[str, str] | None = None) -> OnCallC
         name=(source.get("GUARDIA_ONCALL_NAME") or "").strip() or None,
         backup_email=(source.get("GUARDIA_ONCALL_BACKUP_EMAIL") or "").strip() or None,
     )
+
+
+class MissingAlarmEmailError(ValueError):
+    pass
+
+
+def alarm_email_from_environment(environ: Mapping[str, str] | None = None) -> str:
+    """The team email subscribed to the `guardia-alarms` SNS topic (T6, D21, D34).
+
+    Read from GUARDIA_ALARM_EMAIL (`.env`, never committed). Without it `cdk
+    synth` fails: an alarm nobody receives is the same as no alarm. SNS sends a
+    confirmation email that someone must accept once after the first deploy.
+    """
+    source = os.environ if environ is None else environ
+    email = (source.get("GUARDIA_ALARM_EMAIL") or "").strip()
+    if not email or "@" not in email or any(c.isspace() for c in email):
+        raise MissingAlarmEmailError(
+            "GUARDIA_ALARM_EMAIL is missing or is not an email. Add the team's email to .env "
+            "(see .env.example) and load it before cdk: set -a; source .env; set +a"
+        )
+    return email

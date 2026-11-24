@@ -338,3 +338,52 @@ def _message_id(body: bytes) -> str | None:
             if data.get(key):
                 return str(data[key])
     return None
+
+
+# --------------------------------------------------------------------------- alarms
+MAX_ALARM_REASON = 500
+_ALARM_STATE_LABELS = {
+    "ALARM": "En alarma",
+    "OK": "Normal",
+    "INSUFFICIENT_DATA": "Sin datos suficientes",
+}
+
+
+def build_alarm_card(alarm: dict, *, time_label: str | None = None) -> dict:
+    """GuardIA watching itself (requirement 13.2): a CloudWatch alarm as a card.
+
+    `alarm` is the JSON message CloudWatch publishes to SNS. Nobody is
+    mentioned: alarms are for the team that runs GuardIA, not the on-call
+    engineer of the processes. The alarm reason only carries metric values.
+    """
+    state = str(alarm.get("NewStateValue", ""))
+    facts = [
+        ("Alarma", truncate(alarm.get("AlarmName"), MAX_ACTION)),
+        ("Estado", _ALARM_STATE_LABELS.get(state, truncate(state, MAX_ACTION))),
+        ("Qué vigila", truncate(alarm.get("AlarmDescription") or "—", MAX_SUMMARY)),
+        ("Motivo", truncate(alarm.get("NewStateReason"), MAX_ALARM_REASON)),
+    ]
+    if time_label:
+        facts.append(("Hora", time_label))
+
+    body: list[dict] = [
+        {
+            "type": "TextBlock",
+            "text": "GuardIA - Alarma de GuardIA",
+            "weight": "Bolder",
+            "size": "Medium",
+            "color": "Attention",
+            "wrap": True,
+        },
+        {
+            "type": "TextBlock",
+            "text": "GuardIA detectó un problema en sí misma. Revisa CloudWatch.",
+            "wrap": True,
+        },
+        {"type": "FactSet", "facts": [{"title": t, "value": v} for t, v in facts]},
+    ]
+    content: dict = {"$schema": CARD_SCHEMA, "type": "AdaptiveCard", "version": "1.4", "body": body}
+    return {
+        "type": "message",
+        "attachments": [{"contentType": CARD_CONTENT_TYPE, "content": content}],
+    }
