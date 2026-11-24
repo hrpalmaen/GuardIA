@@ -252,7 +252,7 @@ El reloj de la nube es real y no se puede comprimir la noche. Por eso, en prueba
   - **Datos:** la cuenta ya tiene la aprobación de privacidad (P12). Igual se envía lo mínimo y saneado: nunca las entradas ni las salidas de los pasos.
   - **Red:** las Lambdas sin VPC ya tienen salida a internet.
   - **Credenciales:** el secreto `guardia/agent-azure-openai`, que se carga desde el `.env` con `scripts/load_agent_secret.py`.
-- **Bedrock, pendiente:** en la cuenta del workshop hay que hacer `cdk bootstrap` y habilitar el acceso al modelo.
+- **Bedrock, listo en el código** (entorno `workshop`): en la cuenta del workshop hay que hacer `cdk bootstrap`, habilitar el acceso al modelo y confirmar que acepta herramientas en la API Converse. Los pasos están en el README, "Workshop".
 
 ## 7. Riesgos
 

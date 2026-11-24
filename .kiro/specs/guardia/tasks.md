@@ -76,14 +76,14 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Table-driven tests with 429, 403, failed 404, `TIMED_OUT`, `MISSED_RUN`, and unknown cause.
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 4.2 Define the agent (`AgentPort`, tools, and `AgentDecision`)
+- [x] 4.2 Define the agent (`AgentPort`, tools, and `AgentDecision`)
   - Provider-independent tool-use loop with read-only tools resolved from the incident, a `submit_decision` tool validated as `AgentDecision`, Spanish system instructions with examples and prompt-injection rules (D24).
   - Adapters: Azure OpenAI (test account) and Bedrock Converse (workshop account), selected by `EnvironmentConfig.agent_provider`.
   - Tests: the CDK template grants the agent role no write permissions on the infrastructure, and Bedrock access is limited to one model ARN.
   - Detailed brief: `docs/analisis/tareas-fase-b-equipo.md`, T8.
   - _Requirements: 4.5, 12.2_
 
-- [ ] 4.3 Implement the `InvokeAgent` Lambda
+- [x] 4.3 Implement the `InvokeAgent` Lambda
   - Run the agent loop with a 30 s budget, validate the output with pydantic, record `AGENT_DECIDED` or `AGENT_FAILED`, and escalate on any failure without breaking the flow.
   - Tests with simulated responses: valid, invalid JSON, disallowed action, and timeout.
   - _Requirements: 4.5, 4.6_

@@ -9,6 +9,8 @@ from aws_cdk import aws_ssm as ssm
 from constructs import Construct
 
 from config import (
+    AGENT_AZURE_SECRET_NAME,
+    AZURE_OPENAI,
     DEFAULT_THRESHOLDS,
     SSM_PREFIX,
     TEAMS_ALERTS_SECRET_NAME,
@@ -56,6 +58,7 @@ class DataStack(Stack):
         *,
         thresholds: Mapping[str, str] = DEFAULT_THRESHOLDS,
         retain_data: bool = True,
+        agent_provider: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -100,6 +103,18 @@ class DataStack(Stack):
                 ("TeamsSummaryWebhook", TEAMS_SUMMARY_SECRET_NAME, "summary"),
             )
         }
+
+        if agent_provider == AZURE_OPENAI:
+            # The agent's endpoint, deployment, and key. Same pattern as the webhooks:
+            # a placeholder here, the real values loaded by `scripts/load_agent_secret.py`.
+            self.secrets[AGENT_AZURE_SECRET_NAME] = secretsmanager.Secret(
+                self,
+                "AgentAzureOpenAi",
+                secret_name=AGENT_AZURE_SECRET_NAME,
+                description="GuardIA agent: Azure OpenAI settings (loaded by script, not by hand)",
+                encryption_key=self.key,
+                removal_policy=self.removal_policy,
+            )
 
         # Table names for scripts (for example load_error_catalog.py).
         for name, table in self.tables.items():

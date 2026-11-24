@@ -5,7 +5,7 @@
 
 Stacks, in dependency order: GuardIA-Data → GuardIA-Flow → GuardIA-Detection.
 
-`env` (dev or prod) selects the configuration in `config.ENVIRONMENTS`
+`env` (dev, workshop, or prod) selects the configuration in `config.ENVIRONMENTS`
 (decision D17). It is required: there is no default environment.
 
 The on-call engineer (D19) comes from GUARDIA_ONCALL_EMAIL, GUARDIA_ONCALL_NAME
@@ -36,6 +36,7 @@ data = DataStack(
     env=aws_env,
     thresholds=config.thresholds,
     retain_data=config.retain_data,
+    agent_provider=config.agent_provider,
 )
 flow = FlowStack(
     app,
@@ -43,6 +44,7 @@ flow = FlowStack(
     env=aws_env,
     data=data,
     oncall=oncall_from_environment(),
+    agent=config.agent,
     thresholds=config.thresholds,
     retain_data=config.retain_data,
 )

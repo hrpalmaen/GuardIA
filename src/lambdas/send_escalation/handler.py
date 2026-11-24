@@ -116,6 +116,7 @@ def diagnosis_from_events(events: list[dict], summary: str | None = None) -> dic
     """The diagnosis of the card (7.2) from what GuardIA already recorded: the
     recovery attempts and their outcome, and the policy decision. Only event
     names and short fields are used; error causes never come from here."""
+    ai = bool(summary)  # the summary passed in is the agent's (T8)
     actions: list[dict] = []
     for event in events:
         detail = event.get("detail") or {}
@@ -132,7 +133,10 @@ def diagnosis_from_events(events: list[dict], summary: str | None = None) -> dic
             actions.append({"action": "ejecución recuperada", "result": detail.get("status", "?")})
         elif kind == "POLICY_DECIDED" and not summary:
             summary = f"Decisión de la política: {detail.get('decision')} ({detail.get('reason')})"
-    return {"summary": summary, "actions": actions}
+    diagnosis: dict = {"summary": summary, "actions": actions}
+    if ai:
+        diagnosis["ai"] = True  # the card says the diagnosis was written by the AI agent
+    return diagnosis
 
 
 def _post_with_retries(

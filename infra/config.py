@@ -5,8 +5,8 @@ D8 and the component table in design.md). Handlers read them from SSM at
 runtime and never hardcode them.
 
 `ENVIRONMENTS` holds what changes between the test account and production
-(decision D17). The environment is chosen with `cdk deploy -c env=dev|prod`;
-the code and the stacks are the same in both.
+(decision D17). The environment is chosen with `cdk deploy -c env=dev|workshop|prod`;
+the code and the stacks are the same in all of them.
 """
 
 from __future__ import annotations
@@ -45,6 +45,11 @@ DEFAULT_THRESHOLDS: dict[str, str] = {
     "median-min-executions": "5",
     # Heartbeat
     "heartbeat-missing-minutes": "10",
+    # AI agent (T8, requirements 4.5 and 4.6)
+    "agent-timeout-seconds": "30",
+    "agent-max-turns": "6",
+    "agent-max-tool-output-chars": "4000",
+    "agent-min-confidence": "0.7",
 }
 
 # Secrets Manager names. Created empty by GuardIA-Data; the webhook address is
@@ -52,10 +57,31 @@ DEFAULT_THRESHOLDS: dict[str, str] = {
 # through the code (D20: both hold the same address for now).
 TEAMS_ALERTS_SECRET_NAME = "guardia/teams-alerts-webhook"  # noqa: S105 - a name
 TEAMS_SUMMARY_SECRET_NAME = "guardia/teams-summary-webhook"  # noqa: S105 - a name
+# Azure OpenAI settings of the agent (T8): endpoint, API version, deployment, and
+# key, loaded by `scripts/load_agent_secret.py` from the local `.env`.
+AGENT_AZURE_SECRET_NAME = "guardia/agent-azure-openai"  # noqa: S105 - a name
+
+AZURE_OPENAI = "azure_openai"
+BEDROCK = "bedrock"
+AGENT_PROVIDERS = (AZURE_OPENAI, BEDROCK)
 
 
 class UnknownEnvironmentError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    """Which model the agent uses in an environment (T8). No endpoint, no key: they
+    live in a secret (Azure) or in the Lambda's role (Bedrock)."""
+
+    provider: str
+    model: str | None = None
+
+    def lambda_environment(self) -> dict[str, str]:
+        if self.provider == AZURE_OPENAI:
+            return {"AGENT_PROVIDER": self.provider, "AGENT_SECRET_ID": AGENT_AZURE_SECRET_NAME}
+        return {"AGENT_PROVIDER": self.provider, "AGENT_MODEL": self.model or ""}
 
 
 @dataclass(frozen=True)
@@ -67,11 +93,26 @@ class EnvironmentConfig:
     # environment can be torn down and created again without manual cleanup.
     retain_data: bool = True
     threshold_overrides: Mapping[str, str] = field(default_factory=dict)
+    # AI agent (T8). None: there is no agent and an `unknown` incident escalates.
+    agent_provider: str | None = None
+    agent_model: str | None = None  # Bedrock model id; Azure's deployment lives in the secret
 
     def __post_init__(self) -> None:
         unknown = set(self.threshold_overrides) - set(DEFAULT_THRESHOLDS)
         if unknown:
             raise ValueError(f"unknown thresholds for '{self.name}': {sorted(unknown)}")
+        if self.agent_provider is not None and self.agent_provider not in AGENT_PROVIDERS:
+            raise ValueError(
+                f"agent_provider of '{self.name}' must be one of {list(AGENT_PROVIDERS)} or None"
+            )
+        if self.agent_provider == BEDROCK and not self.agent_model:
+            raise ValueError(f"'{self.name}' uses Bedrock: set agent_model")
+
+    @property
+    def agent(self) -> AgentConfig | None:
+        if self.agent_provider is None:
+            return None
+        return AgentConfig(provider=self.agent_provider, model=self.agent_model)
 
     @property
     def thresholds(self) -> dict[str, str]:
@@ -90,6 +131,21 @@ ENVIRONMENTS: dict[str, EnvironmentConfig] = {
             "remediation-enabled": "true",
             "reminder-interval-minutes": "2",
         },
+        agent_provider=AZURE_OPENAI,
+    ),
+    # Workshop account: simulated processes again, and the agent on Amazon
+    # Bedrock (no keys: the Lambda's role). Confirm the model is enabled in that
+    # account and supports tool use in the Converse API before deploying.
+    "workshop": EnvironmentConfig(
+        name="workshop",
+        deploy_sim=True,
+        retain_data=False,
+        threshold_overrides={
+            "remediation-enabled": "true",
+            "reminder-interval-minutes": "2",
+        },
+        agent_provider=BEDROCK,
+        agent_model="amazon.nova-pro-v1:0",
     ),
     # Production: never the simulator, observe-only at first, and the audit
     # data survives a deleted stack.

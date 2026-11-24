@@ -553,7 +553,7 @@ Las alarmas existen y las pruebas 2 y 3 funcionan. Marca las tareas 8.1 (aunque 
 
 ## T8 · Agente de IA con `AgentPort` (Azure en pruebas, Bedrock en el workshop)
 
-**Responsable:** por definir. **Tamaño:** grande. **Depende de:** T1. Va en paralelo con T4, T5 y T6, y se conecta con las dos:
+**Responsable:** Laura. **Estado:** código y pruebas unitarias hechos en la rama `feat/t8-agente`; falta que Hellen despliegue y pruebe contra Azure (ver README, "Agent"). **Tamaño:** grande. **Depende de:** T1. Va en paralelo con T4, T5 y T6, y se conecta con las dos:
 - en T4, cambia la regla 2 de la política;
 - en T5, le da el diagnóstico a `SendEscalation`.
 

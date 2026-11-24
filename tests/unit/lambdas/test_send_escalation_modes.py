@@ -202,3 +202,30 @@ def test_the_resolved_message_still_goes_out_for_a_resolved_incident():
 
     assert result["posted"] is True
     assert "guardia_recovery" in card_text(poster.calls[0][1])
+
+
+@pytest.mark.req("7.2")
+def test_the_card_says_when_the_diagnosis_was_written_by_the_ai_agent():
+    poster = Poster(None)
+    deps, _ = make(poster, agent_summary="El agente vio un límite de tasa")
+
+    send_escalation(event(), deps, now=bogota(4, 5))
+
+    assert "Diagnóstico de GuardIA (IA)" in card_text(poster.calls[0][1])
+
+
+@pytest.mark.req("7.2")
+def test_a_diagnosis_made_from_the_audit_is_not_labelled_as_ai():
+    poster = Poster(None)
+    deps, _ = make(poster)
+    add_event(deps, "POLICY_DECIDED", 1, {"decision": "ESCALATE", "reason": "observe-only"})
+
+    send_escalation(event(), deps, now=bogota(4, 5))
+
+    text = card_text(poster.calls[0][1])
+    assert "(IA)" not in text and "Diagnóstico" in text
+
+
+def test_diagnosis_from_events_marks_the_agents_summary():
+    assert diagnosis_from_events([], summary="texto")["ai"] is True
+    assert "ai" not in diagnosis_from_events([])

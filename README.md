@@ -58,7 +58,8 @@ npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
 ### Deploy to an AWS account
 
 The environment is required: `-c env=dev` (test account, with the simulator and
-shorter reminders) or `-c env=prod` (observe-only at first). See
+shorter reminders), `-c env=workshop` (the workshop account, see below), or
+`-c env=prod` (observe-only at first). See
 [`infra/config.py`](infra/config.py) and
 [the deployment plan](docs/analisis/plan-despliegue-entorno-pruebas.md).
 
@@ -94,6 +95,38 @@ done
 On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
 virtual environment on the Linux file system as above: a `.venv` inside the
 repository makes the test suite about 40 times slower.
+
+### AI agent (T8)
+
+The agent investigates an incident with read-only tools and **recommends**; the policy
+decides (D28 to D31). It runs in two places: an `unknown` error (not in the catalog) goes
+through it before `RemediationPolicy`, and every escalation gets its diagnosis in the first
+message. If it fails, the incident is escalated as before.
+
+Test account (`dev`, Azure OpenAI). Fill the four `AZURE_*`/`OPENAI_*` variables of `.env`
+(never commit it), deploy, and load them into the secret once:
+
+```bash
+set -a; source .env; set +a
+AWS_PROFILE=analytics python scripts/load_agent_secret.py --dry-run   # checks, prints no value
+AWS_PROFILE=analytics python scripts/load_agent_secret.py
+```
+
+Try it: `python scripts/sim.py fail EMT22 unknown` and read the `AGENT_DECIDED` event of the
+incident, or invoke `InvokeAgent` with `{"incident_id": "...", "mode": "diagnose"}`. A wrong key
+must end in `AGENT_FAILED` with `provider_error` and an escalation without diagnosis.
+
+### Workshop account (Bedrock)
+
+1. `npx aws-cdk@2 bootstrap aws://<account>/<region> --profile <profile>` (once per account).
+2. In the Bedrock console, enable access to the model of `infra/config.py` (`workshop`:
+   `amazon.nova-pro-v1:0`) and confirm it supports tool use in the Converse API. Another model is
+   one line in `config.py`; for a cross-region profile use its id (for example `us.amazon...`).
+3. Set the on-call person in `.env` (`GUARDIA_ONCALL_EMAIL`), and create the Teams channel and
+   webhook of that account (or reuse one) and put it in the two webhook secrets as above.
+4. `npx aws-cdk@2 deploy -c env=workshop --profile <profile> --all`, then load the error catalog.
+5. There is no key to load: the Lambda's role may invoke only that model. To see the failure
+   path, remove `bedrock:InvokeModel` from the role for a minute and open an `unknown` incident.
 
 Local demo of `OpenIncident` and `ClassifyIncident` (in memory with moto, no AWS account needed):
 
