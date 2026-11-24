@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 
-from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
@@ -20,6 +20,7 @@ AUDIT_TABLE = "IncidentEvents"
 # No principal, GuardIA's or a person's, may change or delete an audit event
 # (requirement 10.3). TTL expiry is done by DynamoDB and is not affected.
 AUDIT_DENIED_ACTIONS = ["dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem"]
+_READ_ACTIONS = {"dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:DescribeTable"}
 
 
 def _attribute(name: str | None) -> dynamodb.Attribute | None:
@@ -99,6 +100,35 @@ class DataStack(Stack):
                 ("TeamsSummaryWebhook", TEAMS_SUMMARY_SECRET_NAME, "summary"),
             )
         }
+
+        # Table names for scripts (for example load_error_catalog.py).
+        for name, table in self.tables.items():
+            CfnOutput(self, f"{name}TableName", value=table.table_name)
+
+    def table_env(self, *names: str) -> dict[str, str]:
+        """The `<TABLE>_TABLE` environment variables a handler reads."""
+        return {TABLES[name].env_var: self.tables[name].table_name for name in names}
+
+    def grant_items(self, grantee: iam.IGrantable, name: str, *actions: str) -> iam.Grant:
+        """Exactly `actions` on one table (and its indexes), plus the key use
+        they need: decrypt for reads, encrypt and decrypt for writes.
+        `IncidentEvents` only through `grant_append_events`."""
+        if name == AUDIT_TABLE:
+            raise ValueError("use grant_append_events for IncidentEvents")
+        if set(actions) <= _READ_ACTIONS:
+            self.key.grant_decrypt(grantee)
+        else:
+            self.key.grant_encrypt_decrypt(grantee)
+        return self.tables[name].grant(grantee, *actions)
+
+    def grant_read_thresholds(self, grantee: iam.IGrantable) -> iam.Grant:
+        """Read the SSM thresholds by path (`guardia_common.config.load_thresholds`)."""
+        path = f"arn:{self.partition}:ssm:{self.region}:{self.account}:parameter{SSM_PREFIX}"
+        return iam.Grant.add_to_principal(
+            grantee=grantee,
+            actions=["ssm:GetParametersByPath"],
+            resource_arns=[path, f"{path}/*"],
+        )
 
     def grant_append_events(self, grantee: iam.IGrantable) -> iam.Grant:
         """Write access to `IncidentEvents` that can only add events."""

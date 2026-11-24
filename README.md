@@ -65,7 +65,15 @@ shorter reminders) or `-c env=prod` (observe-only at first). See
 ```bash
 cp .env.example .env        # fill in the on-call engineer; .env is gitignored
 set -a; source .env; set +a
-npx aws-cdk@2 deploy -c env=dev --profile analytics GuardIA-Data
+npx aws-cdk@2 deploy -c env=dev --profile analytics --all   # Data → Flow → Detection
+```
+
+Load the error catalog after the first deploy (and whenever `data/error_catalog.json` changes):
+
+```bash
+TABLE=$(aws cloudformation describe-stacks --profile analytics --stack-name GuardIA-Data \
+  --query "Stacks[0].Outputs[?OutputKey=='ErrorCatalogTableName'].OutputValue" --output text)
+AWS_PROFILE=analytics python scripts/load_error_catalog.py --table "$TABLE"
 ```
 
 The Lambda layer is built with the local pip for Lambda arm64 (Docker is the

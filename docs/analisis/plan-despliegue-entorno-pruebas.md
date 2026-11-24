@@ -195,10 +195,12 @@ ClassifyIncident
 
 Cada PR se despliega en `analytics` al terminar.
 
+**Estado (2026-11-24):** los PR 1 y 2 están desplegados en `analytics`. Prueba manual del PR 2: un evento `MISSED_RUN` publicado a mano abrió el incidente, arrancó `GuardIA-Incident-Flow` y quedó clasificado como `requires_escalation` en unos 4 s; el mismo evento repetido no abrió otro. `DiscoverProcesses` y `MissedRunWatchdog` corren en la nube sin errores (todavía no hay procesos etiquetados: eso llega con `GuardIA-Sim`). El `ErrorCatalog` se carga con `scripts/load_error_catalog.py`.
+
 | # | PR | Qué se puede probar en la nube | Responsable sugerido |
 |---|---|---|---|
-| 1 | Configuración por entorno, capa, `GuardiaFunction` y **primer despliegue de `GuardIA-Data`** (confirma los permisos del usuario de `analytics`) | Tablas y secretos creados | Hellen |
-| 2 | `GuardIA-Flow` mínimo (solo `ClassifyIncident`) y `GuardIA-Detection` completo | Eventos de prueba enviados a mano a EventBridge | Hellen |
+| 1 ✅ | Configuración por entorno, capa, `GuardiaFunction` y **primer despliegue de `GuardIA-Data`** (confirma los permisos del usuario de `analytics`) | Tablas y secretos creados | Hellen |
+| 2 ✅ | `GuardIA-Flow` mínimo (solo `ClassifyIncident`) y `GuardIA-Detection` completo | Eventos de prueba enviados a mano a EventBridge | Hellen |
 | 3 | **Fase C en paralelo:** `GuardIA-Sim` | La noche real en la nube, en Nivel 0 | Por definir |
 | 4 | `RemediationPolicy`, regla de `STUCK_RUN` y la rama de recuperación | Redrive real contra Sim | Daniela |
 | 5 | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED` y `ResolveOnSuccess` | Tarjetas en el canal real | Laura |

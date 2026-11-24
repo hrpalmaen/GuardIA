@@ -37,7 +37,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests with moto: complete resource, incomplete resource, invalid value, and new process.
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.2 Schedule discovery every 15 minutes
+- [x] 2.2 Schedule discovery every 15 minutes
   - EventBridge Scheduler rule in CDK targeting `DiscoverProcesses`.
   - Tests: assertion on the synthesized template.
   - _Requirements: 1.1_
@@ -50,10 +50,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: duplicate event, recording of all fields, and rejection of `SUCCEEDED` executions.
   - _Requirements: 2.2, 2.3, 2.4_
 
-- [ ] 3.2 Create the EventBridge status-change rule
+- [x] 3.2 Create the EventBridge status-change rule
   - Filter `FAILED`, `TIMED_OUT`, and `ABORTED` from the state machines present in `ProcessRegistry`.
   - Target: `OpenIncident`, with an SQS DLQ.
   - Tests: valid and invalid event patterns against the rule pattern.
+  - Progress: `GuardIA-Detection` (Fase B PR 2). The rule matches failures of every state machine in the account with `STATUS_CHANGE_PATTERN`; OpenIncident ignores the ones not in `ProcessRegistry` (including GuardIA's own flow). Verified in the test account with a manual MISSED_RUN event: incident opened, flow started, classified, and a redelivered event did not open a second one.
   - _Requirements: 2.1_
 
 - [x] 3.3 Implement the computation of expected executions and maximum duration
