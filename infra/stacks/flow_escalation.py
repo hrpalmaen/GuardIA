@@ -1,6 +1,6 @@
 """GuardIA-Escalation-Flow (Level 2, D25) · T5, tasks 6.1-6.5.
 
-    SetEscalated ─► ResolveOnCall ($.oncall) ─► SendEscalation initial ($.notification)
+    SetEscalated ─► ResolveOnCall ($.oncall) ─► [InvokeAgentDiagnose, T8] ─► SendEscalation initial
                                                   └ Teams fails 3 times ─► NotificationFailed (Fail)
     ─► PlanReminder ($.timing) ─► DeadlinePassed?
          resolved by the recovery itself ─► SendResolved
@@ -35,6 +35,7 @@ from config import TEAMS_ALERTS_SECRET_NAME
 from guardia_common.incidents import SUCCEEDED_PATTERN
 
 from .detection_stack import event_pattern
+from .flow_agent import invoke_agent_state
 from .flow_context import FlowContext
 
 ESCALATED_CHAIN_START = "SetEscalated"
@@ -242,4 +243,7 @@ def build_escalation(ctx: FlowContext) -> sfn.IChainable:
         .when(sfn.Condition.boolean_equals("$.timing.deadline_passed", True), breached)
         .otherwise(wait_for_resolution)
     )
-    return sfn.Chain.start(set_escalated).next(resolve_on_call).next(first_message)
+    # T8: the agent writes the diagnosis of the card. If it fails, the message goes
+    # out without it; it never delays the escalation beyond its own time limit (13.1).
+    diagnose = invoke_agent_state(ctx, "InvokeAgentDiagnose", "diagnose", first_message)
+    return sfn.Chain.start(set_escalated).next(resolve_on_call).next(diagnose or first_message)

@@ -58,7 +58,8 @@ npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
 ### Deploy to an AWS account
 
 The environment is required: `-c env=dev` (test account, with the simulator and
-shorter reminders) or `-c env=prod` (observe-only at first). See
+shorter reminders), `-c env=workshop` (the workshop account, see below), or
+`-c env=prod` (observe-only at first). See
 [`infra/config.py`](infra/config.py) and
 [the deployment plan](docs/analisis/plan-despliegue-entorno-pruebas.md).
 
@@ -91,9 +92,80 @@ for s in guardia/teams-alerts-webhook guardia/teams-summary-webhook; do
 done
 ```
 
+### Simulator (test account only)
+
+`GuardIA-Sim` deploys the three Genesys orchestrators rebuilt from the sanitized
+histories (same names, tags, and crons) plus `SIMNOAUTO` (`escalate-only`).
+GuardIA discovers and handles them like real processes; `scripts/sim.py` makes
+them fail on demand:
+
+```bash
+export AWS_PROFILE=analytics AWS_DEFAULT_REGION=us-east-1
+python scripts/sim.py status
+python scripts/sim.py fail EMTSAS http500 --times 1 && python scripts/sim.py run EMTSAS
+python scripts/sim.py fail EMT12 oom                   # real OutOfMemory, then States.Runtime
+python scripts/sim.py fail EMT12 stuck --wait-minutes 40
+python scripts/sim.py fail EMT22 unknown               # outside the ErrorCatalog
+python scripts/sim.py missed EMT22 --minutes 70        # before the cron; do not `run` that org
+python scripts/sim.py deadline EMT12 --in 40           # short deadline for SLA scenarios
+python scripts/sim.py teams-down --minutes 15
+python scripts/sim.py clear
+```
+
+After changing `infra/sim/definition.py`, regenerate and check the definitions
+with `python scripts/build_sim_definitions.py` (`--check` in CI).
+
 On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
 virtual environment on the Linux file system as above: a `.venv` inside the
 repository makes the test suite about 40 times slower.
+
+### Fast demo (dev and workshop)
+
+The environments with the simulator wait seconds, not minutes (D33). A failure the flow can
+recover (`http500`, `429`, `oom`) is redriven, polled every 5 s, and resolved in well under a
+minute, and an escalation sends its reminders every 30 s. Production keeps the real values.
+
+Missed and stuck runs still wait for the watchdog (every 5 minutes, plus 1 minute of tolerance).
+In a live demo, start the scenario beforehand or invoke the watchdog by hand right after the
+scenario is ready:
+
+```bash
+FN=$(aws cloudformation list-stack-resources --profile analytics --stack-name GuardIA-Detection \
+  --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && contains(LogicalResourceId,'MissedRunWatchdog')].PhysicalResourceId" --output text)
+aws lambda invoke --profile analytics --function-name "$FN" /dev/null
+```
+
+### AI agent (T8)
+
+The agent investigates an incident with read-only tools and **recommends**; the policy
+decides (D28 to D31). It runs in two places: an `unknown` error (not in the catalog) goes
+through it before `RemediationPolicy`, and every escalation gets its diagnosis in the first
+message. If it fails, the incident is escalated as before.
+
+Test account (`dev`, Azure OpenAI). Fill the four `AZURE_*`/`OPENAI_*` variables of `.env`
+(never commit it), deploy, and load them into the secret once:
+
+```bash
+set -a; source .env; set +a
+AWS_PROFILE=analytics python scripts/load_agent_secret.py --dry-run   # checks, prints no value
+AWS_PROFILE=analytics python scripts/load_agent_secret.py
+```
+
+Try it: `python scripts/sim.py fail EMT22 unknown` and read the `AGENT_DECIDED` event of the
+incident, or invoke `InvokeAgent` with `{"incident_id": "...", "mode": "diagnose"}`. A wrong key
+must end in `AGENT_FAILED` with `provider_error` and an escalation without diagnosis.
+
+### Workshop account (Bedrock)
+
+1. `npx aws-cdk@2 bootstrap aws://<account>/<region> --profile <profile>` (once per account).
+2. In the Bedrock console, enable access to the model of `infra/config.py` (`workshop`:
+   `amazon.nova-pro-v1:0`) and confirm it supports tool use in the Converse API. Another model is
+   one line in `config.py`; for a cross-region profile use its id (for example `us.amazon...`).
+3. Set the on-call person in `.env` (`GUARDIA_ONCALL_EMAIL`), and create the Teams channel and
+   webhook of that account (or reuse one) and put it in the two webhook secrets as above.
+4. `npx aws-cdk@2 deploy -c env=workshop --profile <profile> --all`, then load the error catalog.
+5. There is no key to load: the Lambda's role may invoke only that model. To see the failure
+   path, remove `bedrock:InvokeModel` from the role for a minute and open an `unknown` incident.
 
 Local demo of `OpenIncident` and `ClassifyIncident` (in memory with moto, no AWS account needed):
 

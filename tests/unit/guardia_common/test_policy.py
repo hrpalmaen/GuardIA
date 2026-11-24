@@ -169,6 +169,18 @@ def test_429_without_retry_after_uses_the_default_wait() -> None:
     assert run(inc).wait_seconds == DEFAULT_RETRY_AFTER_S
 
 
+@pytest.mark.req("5.2")
+def test_the_default_429_wait_is_a_threshold_and_a_stated_retry_after_still_wins() -> None:
+    fast = {**THRESHOLDS, "default-retry-after-seconds": "5"}
+    inc = incident(catalog_action="wait_and_redrive", cause="429 Too Many Requests")
+    stated = incident(
+        catalog_action="wait_and_redrive", root_cause="Genesys 429, Retry-After: 75", cause="x"
+    )
+
+    assert run(inc, thresholds=fast).wait_seconds == 5
+    assert run(stated, thresholds=fast).wait_seconds == 75
+
+
 def test_plain_redrive_does_not_wait() -> None:
     assert run(incident(cause="Retry-After: 300")).wait_seconds == 0
 
@@ -177,3 +189,142 @@ def test_decision_serializes_for_the_flow() -> None:
     assert run(incident()).as_dict() == {
         "decision": "REMEDIATE", "reason": "recoverable", "wait_seconds": 0, "minutes_left": 120,
     }  # fmt: skip
+
+
+# ------------------------------------------------------------------ T8 · rule 2 with the agent
+def agent_incident(**overrides) -> Incident:
+    """An incident the catalog did not know and the agent recommended for."""
+    base = {
+        "classification": "unknown",
+        "catalog_action": None,
+        "agent_classification": "auto_recoverable",
+        "agent_action": "redrive",
+        "agent_confidence": 0.85,
+        "agent_wait_seconds": 0,
+        "agent_summary": "Un 500 transitorio.",
+    }
+    return incident(**{**base, **overrides})
+
+
+@pytest.mark.req("4.5")
+def test_an_unknown_incident_uses_the_agents_recommendation_as_if_it_were_the_catalogs() -> None:
+    result = run(agent_incident())
+
+    assert (result.decision, result.reason, result.source) == (
+        Decision.REMEDIATE,
+        "recoverable",
+        "agent",
+    )
+    assert result.as_dict()["source"] == "agent"
+
+
+def test_the_catalog_decisions_do_not_record_a_source() -> None:
+    assert "source" not in run(incident()).as_dict()
+    assert "source" not in run(incident(classification="unknown")).as_dict()
+
+
+@pytest.mark.req("4.5")
+def test_the_minimum_confidence_comes_from_the_threshold() -> None:
+    low = agent_incident(agent_confidence=0.69)
+
+    assert run(low).reason == "agent-low_confidence"
+    assert run(agent_incident(agent_confidence=0.7)).reason == "recoverable"  # exactly the minimum
+    strict = {**THRESHOLDS, "agent-min-confidence": "0.9"}
+    assert run(agent_incident(agent_confidence=0.85), thresholds=strict).reason == (
+        "agent-low_confidence"
+    )
+
+
+@pytest.mark.req("4.6")
+@pytest.mark.parametrize(
+    "failure", ["timeout", "invalid_output", "provider_error", "low_confidence"]
+)
+def test_a_failed_agent_escalates_and_the_reason_says_why(failure) -> None:
+    failed = incident(classification="unknown", agent_failure=failure)
+
+    result = run(failed)
+
+    assert (result.decision, result.reason) == (Decision.ESCALATE, f"agent-{failure}")
+
+
+@pytest.mark.req("4.5")
+def test_an_agent_that_says_escalate_escalates() -> None:
+    by_class = agent_incident(agent_classification="requires_escalation", agent_action="escalate")
+    by_action = agent_incident(agent_action="escalate")
+
+    assert run(by_class).reason == "agent-requires-escalation"
+    assert run(by_action).reason == "agent-suggests-escalation"
+
+
+@pytest.mark.req("12.2")
+@pytest.mark.parametrize(
+    ("overrides", "thresholds", "reason"),
+    [
+        ({"remediation": "escalate-only"}, THRESHOLDS, "process-escalate-only"),
+        ({}, {**THRESHOLDS, "remediation-enabled": "false"}, "observe-only"),
+        ({"attempts": 2}, THRESHOLDS, "attempts-exhausted"),
+        (
+            {"opened_at": (NOW - timedelta(minutes=20)).isoformat()},
+            THRESHOLDS,
+            "remediation-window-exceeded",
+        ),
+        (
+            {"agent_action": "wait_and_redrive", "agent_wait_seconds": 120},
+            {**THRESHOLDS, "max-wait-seconds": "100"},
+            "wait-too-long",
+        ),
+    ],
+)
+def test_the_agent_cannot_bypass_the_fixed_rules(overrides, thresholds, reason) -> None:
+    result = run(agent_incident(**overrides), thresholds=thresholds)
+
+    assert result.decision == Decision.ESCALATE and result.reason == reason
+
+
+def test_little_time_left_still_recovers_and_escalates_in_parallel_with_the_agent() -> None:
+    soon = agent_incident(deadline_iso=(NOW + timedelta(minutes=30)).isoformat())
+
+    result = run(soon)
+
+    assert (result.decision, result.reason) == (Decision.REMEDIATE_AND_ESCALATE, "low-time")
+
+
+@pytest.mark.req("5.2")
+def test_the_agents_wait_is_used_when_the_cause_does_not_say_how_long() -> None:
+    waits = agent_incident(agent_action="wait_and_redrive", agent_wait_seconds=120)
+
+    assert run(waits).wait_seconds == 120
+
+
+def test_a_retry_after_in_the_cause_wins_over_the_agents_guess() -> None:
+    told = agent_incident(
+        agent_action="wait_and_redrive", agent_wait_seconds=120, cause="429 Retry-After: 45"
+    )
+
+    assert run(told).wait_seconds == 45
+
+
+def test_an_agent_wait_of_zero_falls_back_to_the_default_wait() -> None:
+    waits = agent_incident(agent_action="wait_and_redrive", agent_wait_seconds=0)
+
+    assert run(waits).wait_seconds == DEFAULT_RETRY_AFTER_S
+
+
+def test_the_agent_never_overrides_a_catalog_classification() -> None:
+    known = incident(
+        classification="requires_escalation",
+        catalog_action="escalate",
+        agent_classification="auto_recoverable",
+        agent_action="redrive",
+        agent_confidence=0.99,
+    )
+
+    result = run(known)
+
+    assert result.reason == "catalog-requires-escalation" and result.source == "catalog"
+
+
+def test_the_watchdog_incidents_ignore_the_agent() -> None:
+    result = run(agent_incident(kind="MISSED_RUN"))
+
+    assert result.reason == "watchdog-detection"

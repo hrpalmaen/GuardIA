@@ -31,6 +31,7 @@ from config import SSM_PREFIX
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 LAMBDAS = SRC / "lambdas"
+SIM_LAMBDAS = SRC / "sim_lambdas"  # test-only Lambdas of GuardIA-Sim
 
 RUNTIME = lambda_.Runtime.PYTHON_3_12
 ARCHITECTURE = lambda_.Architecture.ARM_64
@@ -118,16 +119,18 @@ class GuardiaFunction(Construct):
         construct_id: str,
         *,
         name: str,
-        layer: lambda_.ILayerVersion,
+        layer: lambda_.ILayerVersion | None,
         environment: dict[str, str] | None = None,
         timeout_seconds: int = 30,
         memory_size: int = 256,
         description: str | None = None,
+        code_root: Path = LAMBDAS,
     ) -> None:
         super().__init__(scope, construct_id)
-        code_dir = LAMBDAS / name
+        code_dir = code_root / name
         if not (code_dir / "handler.py").is_file():
-            raise ValueError(f"no Lambda at src/lambdas/{name}/handler.py")
+            relative = code_dir.relative_to(ROOT).as_posix()  # "/" also on Windows
+            raise ValueError(f"no Lambda at {relative}/handler.py")
 
         self.log_group = logs.LogGroup(
             self,
@@ -149,7 +152,7 @@ class GuardiaFunction(Construct):
             architecture=ARCHITECTURE,
             handler="handler.handler",
             code=lambda_.Code.from_asset(str(code_dir), exclude=_ASSET_EXCLUDE),
-            layers=[layer],
+            layers=[layer] if layer is not None else [],
             environment={"GUARDIA_SSM_PREFIX": SSM_PREFIX, **(environment or {})},
             timeout=Duration.seconds(timeout_seconds),
             memory_size=memory_size,

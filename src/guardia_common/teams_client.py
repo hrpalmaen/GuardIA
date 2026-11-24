@@ -112,7 +112,8 @@ def build_escalation_card(
     ]
     summary = truncate(diagnosis.get("summary"), MAX_SUMMARY)
     if summary:
-        facts.insert(3, ("Diagnóstico", summary))
+        label = "Diagnóstico de GuardIA (IA)" if diagnosis.get("ai") else "Diagnóstico"
+        facts.insert(3, (label, summary))
 
     mention_line = " ".join(e["text"] for e in entities)
     body: list[dict] = [

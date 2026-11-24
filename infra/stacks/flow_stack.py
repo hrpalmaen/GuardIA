@@ -28,9 +28,10 @@ from aws_cdk import aws_stepfunctions_tasks as tasks
 from constructs import Construct
 
 from components.function import GuardiaFunction, shared_layer
-from config import DEFAULT_THRESHOLDS, OnCallConfig
+from config import DEFAULT_THRESHOLDS, AgentConfig, OnCallConfig
 
 from .data_stack import DataStack
+from .flow_agent import route_unknown_to_agent
 from .flow_context import FlowContext
 from .flow_escalation import build_escalation
 from .flow_recovery import build_recovery
@@ -49,6 +50,7 @@ class FlowStack(Stack):
         *,
         data: DataStack,
         oncall: OnCallConfig,
+        agent: AgentConfig | None = None,
         thresholds: Mapping[str, str] = DEFAULT_THRESHOLDS,
         retain_data: bool = True,
         **kwargs,
@@ -56,7 +58,7 @@ class FlowStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         ctx = FlowContext(
             scope=self, data=data, layer=shared_layer(self, retain=retain_data),
-            thresholds=thresholds, oncall=oncall,
+            thresholds=thresholds, oncall=oncall, agent=agent,
         )  # fmt: skip
         self.functions = ctx.functions
 
@@ -78,7 +80,8 @@ class FlowStack(Stack):
         self.escalation_state_machine = self._state_machine(
             "EscalationFlow", ESCALATION_FLOW_NAME, build_escalation(ctx)
         )
-        definition = classify.next(build_recovery(ctx, self._escalate))
+        recovery = build_recovery(ctx, self._escalate)
+        definition = classify.next(route_unknown_to_agent(ctx, recovery))
         self.state_machine = self._state_machine("IncidentFlow", FLOW_NAME, definition)
 
     def _state_machine(self, construct_id: str, name: str, definition) -> sfn.StateMachine:

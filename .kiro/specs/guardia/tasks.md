@@ -76,14 +76,14 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Table-driven tests with 429, 403, failed 404, `TIMED_OUT`, `MISSED_RUN`, and unknown cause.
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 4.2 Define the agent (`AgentPort`, tools, and `AgentDecision`)
+- [x] 4.2 Define the agent (`AgentPort`, tools, and `AgentDecision`)
   - Provider-independent tool-use loop with read-only tools resolved from the incident, a `submit_decision` tool validated as `AgentDecision`, Spanish system instructions with examples and prompt-injection rules (D24).
   - Adapters: Azure OpenAI (test account) and Bedrock Converse (workshop account), selected by `EnvironmentConfig.agent_provider`.
   - Tests: the CDK template grants the agent role no write permissions on the infrastructure, and Bedrock access is limited to one model ARN.
   - Detailed brief: `docs/analisis/tareas-fase-b-equipo.md`, T8.
   - _Requirements: 4.5, 12.2_
 
-- [ ] 4.3 Implement the `InvokeAgent` Lambda
+- [x] 4.3 Implement the `InvokeAgent` Lambda
   - Run the agent loop with a 30 s budget, validate the output with pydantic, record `AGENT_DECIDED` or `AGENT_FAILED`, and escalate on any failure without breaking the flow.
   - Tests with simulated responses: valid, invalid JSON, disallowed action, and timeout.
   - _Requirements: 4.5, 4.6_
@@ -200,9 +200,10 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): every `GuardiaFunction` already has retries and an SQS DLQ; `GuardIA-Observability` adds `Errors` and DLQ alarms for each one, plus `ExecutionsFailed` for both flows and `FailedInvocations` for the Detection rules.
 
 - [ ] 9. End-to-end tests (depends on 6.5, 7.3)
-- [ ] 9.1 Create synthetic test state machines
+- [x] 9.1 Create synthetic test state machines
   - CDK test stack with tagged processes that fail on demand with 429, 403, and timeout.
   - Tests: the state machines are discovered by tags and generate incidents.
+  - Progress (T3): `GuardIA-Sim` deployed in the test account instead of synthetic 429/403 machines: the three Genesys orchestrators rebuilt from the sanitized histories plus `SIMNOAUTO` (escalate-only), one stub Lambda driven by the SimScenarios table (`http500`, `oom` with a real `Runtime.OutOfMemory`, `stuck`, `unknown`), and `scripts/sim.py` (`fail`, `run`, `missed`, `deadline`, `teams-down`, `clear`). Verified: discovered by tag, EMTSAS 500 relaunched and RESOLVED in 3 min 16 s, EMT12 OOM → States.Runtime classified with its real root cause, unknown and escalate-only escalate, IAM denies redrive without the tag.
   - _Requirements: 1.3, 13.4_
 
 - [ ] 9.2 Test the 429 → automatic recovery scenario

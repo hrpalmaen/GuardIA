@@ -1,7 +1,7 @@
 """Pydantic models shared across Lambdas (task 1.3).
 
 Included here: the models needed by OpenIncident and ClassifyIncident.
-`AgentDecision` is added with the Bedrock agent (tasks 1.3 / 4.3).
+The agent's own contracts (`AgentDecision`) live in `guardia_common.agent.models`.
 """
 
 from __future__ import annotations
@@ -156,6 +156,14 @@ class Incident(_Item):
     resolved_by: str | None = None
     teams_thread_id: str | None = None
     task_token: str | None = None
+    # Written by InvokeAgent (T8). The agent only recommends: RemediationPolicy
+    # decides whether to use `agent_*` as if it were the catalog (rule 2).
+    agent_classification: Literal["auto_recoverable", "requires_escalation"] | None = None
+    agent_action: CatalogAction | None = None
+    agent_confidence: float | None = Field(default=None, ge=0, le=1)
+    agent_wait_seconds: int | None = Field(default=None, ge=0)
+    agent_summary: str | None = None  # diagnosis in Spanish for the Teams card
+    agent_failure: str | None = None  # why the agent gave no usable answer
 
     @field_validator("remediation", mode="before")
     @classmethod

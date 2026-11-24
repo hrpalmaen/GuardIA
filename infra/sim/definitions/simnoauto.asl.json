@@ -1,0 +1,174 @@
+{
+  "Comment": "GuardIA-Sim: SIMNOAUTO conversations orchestrator rebuilt from its history",
+  "StartAt": "BI-SIMNOAUTO-GCRAW-IngestionControllerTask",
+  "States": {
+    "BI-SIMNOAUTO-GCRAW-IngestionControllerTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${StubFunctionArn}",
+        "Payload": {
+          "org": "SIMNOAUTO",
+          "step": "IngestionController",
+          "execution_id.$": "$$.Execution.Id",
+          "redrive_count.$": "$$.Execution.RedriveCount"
+        }
+      },
+      "ResultPath": "$.ingestionData",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.ingestionError",
+          "Next": "BI-SIMNOAUTO-GCRAW-NotifyIngestionError"
+        }
+      ],
+      "Next": "BI-SIMNOAUTO-GCRAW-CheckTasksToProcess"
+    },
+    "BI-SIMNOAUTO-GCRAW-NotifyIngestionError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject": "SIMNOAUTO - IngestionController Error",
+        "Message.$": "States.Format('IngestionController FAILED: {}', $.ingestionError.Error)"
+      },
+      "ResultPath": null,
+      "Next": "BI-SIMNOAUTO-GCRAW-FailIngestionController"
+    },
+    "BI-SIMNOAUTO-GCRAW-FailIngestionController": {
+      "Type": "Fail",
+      "Error": "IngestionControllerError",
+      "Cause": "IngestionController failed"
+    },
+    "BI-SIMNOAUTO-GCRAW-CheckTasksToProcess": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.ingestionData.Payload.simWaitSeconds",
+          "IsPresent": true,
+          "Next": "BI-SIMNOAUTO-GCRAW-SimStuckWait"
+        },
+        {
+          "Variable": "$.ingestionData.Payload.totalTasks",
+          "NumericGreaterThan": 0,
+          "Next": "BI-SIMNOAUTO-GCRAW-FetchRawDataMap"
+        }
+      ],
+      "Default": "BI-SIMNOAUTO-GCRAW-NoTasksToProcess"
+    },
+    "BI-SIMNOAUTO-GCRAW-SimStuckWait": {
+      "Type": "Wait",
+      "SecondsPath": "$.ingestionData.Payload.simWaitSeconds",
+      "Next": "BI-SIMNOAUTO-GCRAW-FetchRawDataMap"
+    },
+    "BI-SIMNOAUTO-GCRAW-NoTasksToProcess": {
+      "Type": "Succeed"
+    },
+    "BI-SIMNOAUTO-GCRAW-FetchRawDataMap": {
+      "Type": "Map",
+      "ItemsPath": "$.ingestionData.Payload.tasks",
+      "ItemSelector": {
+        "task.$": "$$.Map.Item.Value"
+      },
+      "MaxConcurrency": 5,
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "BI-SIMNOAUTO-GCRAW-FetchRawConversationsTask",
+        "States": {
+          "BI-SIMNOAUTO-GCRAW-FetchRawConversationsTask": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${StubFunctionArn}",
+              "Payload": {
+                "org": "SIMNOAUTO",
+                "step": "FetchRawConversations",
+                "execution_id.$": "$$.Execution.Id",
+                "redrive_count.$": "$$.Execution.RedriveCount",
+                "task.$": "$.task"
+              }
+            },
+            "OutputPath": "$.Payload",
+            "Next": "BI-SIMNOAUTO-GCRAW-CheckRecordsProcessed"
+          },
+          "BI-SIMNOAUTO-GCRAW-CheckRecordsProcessed": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.recordsProcessed",
+                "NumericGreaterThan": 0,
+                "Next": "BI-SIMNOAUTO-GCRAW-ProcessConversationSplitterTask"
+              }
+            ],
+            "Default": "BI-SIMNOAUTO-GCRAW-SkipSplitterNoRecords"
+          },
+          "BI-SIMNOAUTO-GCRAW-ProcessConversationSplitterTask": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${StubFunctionArn}",
+              "Payload": {
+                "org": "SIMNOAUTO",
+                "step": "ProcessConversationSplitter",
+                "execution_id.$": "$$.Execution.Id",
+                "redrive_count.$": "$$.Execution.RedriveCount",
+                "records.$": "$.recordsProcessed"
+              }
+            },
+            "OutputPath": "$.Payload",
+            "End": true
+          },
+          "BI-SIMNOAUTO-GCRAW-SkipSplitterNoRecords": {
+            "Type": "Pass",
+            "Result": {
+              "messagesSent": 0
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.mapResults",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.mapError",
+          "Next": "BI-SIMNOAUTO-GCRAW-NotifyMapError"
+        }
+      ],
+      "Next": "BI-SIMNOAUTO-GCRAW-UpdateCheckpointTask"
+    },
+    "BI-SIMNOAUTO-GCRAW-NotifyMapError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject": "SIMNOAUTO - Map Error",
+        "Message.$": "States.Format('Map FAILED: {}', $.mapError.Error)"
+      },
+      "ResultPath": null,
+      "Next": "BI-SIMNOAUTO-GCRAW-UpdateCheckpointTask"
+    },
+    "BI-SIMNOAUTO-GCRAW-UpdateCheckpointTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${StubFunctionArn}",
+        "Payload": {
+          "org": "SIMNOAUTO",
+          "step": "UpdateCheckpointStatus",
+          "execution_id.$": "$$.Execution.Id",
+          "redrive_count.$": "$$.Execution.RedriveCount",
+          "messagesSent.$": "$.mapResults[0].messagesSent"
+        }
+      },
+      "ResultPath": "$.checkpoint",
+      "End": true
+    }
+  }
+}
