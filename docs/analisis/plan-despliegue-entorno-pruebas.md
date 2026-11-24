@@ -120,14 +120,17 @@ GuardIA no distingue el simulador de los procesos reales: ve ejecuciones reales 
 
 | Tema | Decisión |
 |---|---|
-| Dependencias | **Una capa compartida** con `pydantic`, `pydantic_core`, `croniter` y `guardia_common` (unos 10 MB). Cada Lambda lleva solo su carpeta. `boto3` no se empaqueta porque viene en el runtime |
-| Construcción | Bundling de CDK con Docker (imagen oficial de Python 3.12) y `pip install --platform manylinux… --only-binary`, para que `pydantic_core` salga compilado para Lambda y no para WSL |
+| Dependencias | **Una capa compartida** con `pydantic`, `pydantic_core`, `croniter` y `guardia_common` (11 MB). `python-dateutil` se fija en 2.9 porque la capa va antes que el runtime y botocore exige <3. Cada Lambda lleva solo su carpeta. `boto3` no se empaqueta porque viene en el runtime |
+| Construcción | `pip install --platform manylinux2014_aarch64 --only-binary=:all:` con el pip local, para que `pydantic_core` salga compilado para Lambda y no para WSL. Si el pip local falla, CDK usa Docker (imagen oficial de Python 3.12) con el mismo comando, así que Docker no es obligatorio |
 | Arquitectura | **arm64** (Graviton): cerca de 20 % más barato, sin cambios de código |
 | `GuardiaFunction` | Una construcción de CDK que aplica a todas las Lambdas lo mismo: runtime, capa, logs JSON con retención de 30 días, timeout, DLQ y tags |
 
 #### B2 · Configuración por entorno (D17)
 
-- **Selección:** `cdk deploy -c env=dev --profile analytics`. `infra/config.py` define un `EnvironmentConfig` por entorno con el prefijo de nombres (`guardia-dev-…`), los umbrales que cambian (en dev, recordatorios cada 2 min y la hora límite en horario laboral), si se despliega `GuardIA-Sim` y el umbral `remediation-enabled`.
+- **Selección:** `cdk deploy -c env=dev --profile analytics`. `infra/config.py` define un `EnvironmentConfig` por entorno con los umbrales que cambian (en dev, recordatorios cada 2 min y la hora límite en horario laboral), si se despliega `GuardIA-Sim` y el umbral `remediation-enabled`.
+- **Nombres:** los stacks y los recursos se llaman igual en los dos entornos (`GuardIA-Data`, `guardia/teams-alerts-webhook`…), porque pruebas y producción son cuentas distintas. El entorno queda en la etiqueta `guardia:environment`. `-c env` es obligatorio: sin él, `cdk synth` falla.
+- **Qué pasa al borrar el stack (`retain_data`):** en dev, `DESTROY`: `cdk destroy` borra tablas, secretos y capa, porque los datos son simulados; la llave KMS se borra con la espera mínima de AWS, 7 días. En prod, `RETAIN`: la llave, las tablas (auditoría) y los secretos sobreviven a un borrado accidental del stack, y la espera de la llave es de 30 días.
+- **Producción arranca en modo solo observación:** `remediation-enabled=false` por defecto; dev lo pone en `true` para probar el redrive contra el simulador.
 - **`.env`:** el app de CDK lee variables de entorno, no el archivo. Antes de desplegar: `set -a; source .env; set +a`. Si falta `GUARDIA_ONCALL_EMAIL`, `cdk synth` falla.
 - **Secretos:** los webhooks se crean **vacíos** desde CDK y el valor se pone una vez a mano con `aws secretsmanager put-secret-value`, así la dirección nunca pasa por el código.
 

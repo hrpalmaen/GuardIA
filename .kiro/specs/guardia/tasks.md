@@ -9,11 +9,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: CDK synthesis generates the template without errors.
   - _Requirements: 13.3_
 
-- [ ] 1.2 Define the DynamoDB tables
+- [x] 1.2 Define the DynamoDB tables
   - Create `ProcessRegistry`, `Incidents` (unique index by `execution_arn`, with encrypted `task_token` and `teams_thread_id`), `IncidentEvents`, `ErrorCatalog`, and `OnCallSchedule` (with `teams_user_id`, `display_name`, and `email`), all encrypted with KMS.
   - `IncidentEvents` with a policy that only allows conditional `PutItem`, a 13-month TTL, and point-in-time recovery.
   - Tests: an IAM policy test confirms that `IncidentEvents` rejects updates and deletes.
-  - Progress: tables defined once in `guardia_common/tables.py` and built from it by `DataStack` (KMS, TTL, PITR, `execution_arn` index) and by the local environments. Pending: the IAM append-only policy and its test (they need the Lambda roles).
+  - Progress: tables defined once in `guardia_common/tables.py` and built from it by `DataStack` (KMS, TTL, PITR, `execution_arn` index) and by the local environments. Append-only: the `IncidentEvents` resource policy denies `UpdateItem`, `DeleteItem`, and `BatchWriteItem` to every principal, and `DataStack.grant_append_events` gives Lambdas only `PutItem`; both are covered by synth tests (Fase B PR 1).
   - _Requirements: 10.2, 10.3_
 
 - [ ] 1.3 Implement the `guardia_common` library

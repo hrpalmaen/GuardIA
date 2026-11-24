@@ -78,3 +78,73 @@ def test_incident_events_has_ttl_and_point_in_time_recovery(template: Template) 
         "TimeToLiveSpecification": {"AttributeName": "expires_at", "Enabled": True},
         "PointInTimeRecoverySpecification": {"PointInTimeRecoveryEnabled": True},
     })  # fmt: skip
+
+
+# --------------------------------------------------------------------------- Fase B · PR 1
+from aws_cdk import aws_iam as iam  # noqa: E402
+
+from config import TEAMS_ALERTS_SECRET_NAME, TEAMS_SUMMARY_SECRET_NAME, environment  # noqa: E402
+from stacks.data_stack import AUDIT_DENIED_ACTIONS  # noqa: E402
+
+
+@pytest.mark.req("12.3")
+def test_webhook_secrets_are_encrypted_with_the_data_key(template: Template) -> None:
+    secrets = template.find_resources("AWS::SecretsManager::Secret")
+    names = {r["Properties"]["Name"]: r for r in secrets.values()}
+    assert set(names) == {TEAMS_ALERTS_SECRET_NAME, TEAMS_SUMMARY_SECRET_NAME}
+    for resource in names.values():
+        assert "KmsKeyId" in resource["Properties"]
+
+
+@pytest.mark.req("10.3")
+def test_incident_events_denies_updates_and_deletes_to_everyone(template: Template) -> None:
+    template.has_resource_properties("AWS::DynamoDB::Table", {
+        "KeySchema": [{"AttributeName": "incident_id", "KeyType": "HASH"},
+                      {"AttributeName": "sk", "KeyType": "RANGE"}],
+        "ResourcePolicy": {"PolicyDocument": {"Statement": [{
+            "Effect": "Deny", "Principal": {"AWS": "*"},
+            "Action": AUDIT_DENIED_ACTIONS, "Resource": "*",
+        }]}},
+    })  # fmt: skip
+
+
+@pytest.mark.req("10.3")
+def test_grant_append_events_allows_put_but_never_update_or_delete() -> None:
+    app = cdk.App()
+    stack = DataStack(app, "GuardIA-Data-Grant")
+    role = iam.Role(stack, "Writer", assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"))
+    stack.grant_append_events(role)
+    actions: set[str] = set()
+    for policy in Template.from_stack(stack).find_resources("AWS::IAM::Policy").values():
+        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+            listed = statement["Action"]
+            actions.update([listed] if isinstance(listed, str) else listed)
+    assert "dynamodb:PutItem" in actions
+    assert not actions & {*AUDIT_DENIED_ACTIONS, "dynamodb:*"}
+
+
+@pytest.mark.req("13.3")
+def test_dev_thresholds_are_published_for_the_test_account() -> None:
+    dev = environment("dev")
+    stack = DataStack(cdk.App(), "GuardIA-Data-Dev", thresholds=dev.thresholds)
+    template = Template.from_stack(stack)
+    template.has_resource_properties("AWS::SSM::Parameter", {
+        "Name": f"{SSM_PREFIX}/reminder-interval-minutes", "Value": "2",
+    })  # fmt: skip
+    template.has_resource_properties("AWS::SSM::Parameter", {
+        "Name": f"{SSM_PREFIX}/remediation-enabled", "Value": "true",
+    })  # fmt: skip
+
+
+@pytest.mark.parametrize(("env_name", "policy", "pending_days"), [
+    ("dev", "Delete", 7),
+    ("prod", "Retain", 30),
+])  # fmt: skip
+def test_removal_policy_follows_the_environment(env_name, policy, pending_days) -> None:
+    config = environment(env_name)
+    stack = DataStack(cdk.App(), f"GuardIA-Data-{env_name}", retain_data=config.retain_data)
+    template = Template.from_stack(stack)
+    for kind in ("AWS::DynamoDB::Table", "AWS::SecretsManager::Secret", "AWS::KMS::Key"):
+        for resource in template.find_resources(kind).values():
+            assert resource["DeletionPolicy"] == policy, kind
+    template.has_resource_properties("AWS::KMS::Key", {"PendingWindowInDays": pending_days})

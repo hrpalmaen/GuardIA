@@ -44,7 +44,7 @@ See [`.kiro/steering/structure.md`](.kiro/steering/structure.md) for the full tr
 
 ## Stack
 
-Python 3.12 · AWS CDK · Step Functions · Lambda · EventBridge · DynamoDB · Amazon Bedrock (Nova Pro) · Secrets Manager · SES · CloudWatch
+Python 3.12 · AWS CDK · Step Functions · Lambda · EventBridge · DynamoDB · Amazon Bedrock (Nova Pro) · Secrets Manager · CloudWatch
 
 ## Getting started
 
@@ -53,6 +53,34 @@ python -m venv ~/.venvs/guardia && source ~/.venvs/guardia/bin/activate
 pip install -e ".[dev]"
 pytest
 npx aws-cdk@2 synth        # or `cdk synth` if the CDK CLI is installed globally
+```
+
+### Deploy to an AWS account
+
+The environment is required: `-c env=dev` (test account, with the simulator and
+shorter reminders) or `-c env=prod` (observe-only at first). See
+[`infra/config.py`](infra/config.py) and
+[the deployment plan](docs/analisis/plan-despliegue-entorno-pruebas.md).
+
+```bash
+cp .env.example .env        # fill in the on-call engineer; .env is gitignored
+set -a; source .env; set +a
+npx aws-cdk@2 deploy -c env=dev --profile analytics GuardIA-Data
+```
+
+The Lambda layer is built with the local pip for Lambda arm64 (Docker is the
+fallback). If pip points to an index that needs a login, set
+`PIP_INDEX_URL=https://pypi.org/simple` for the command.
+
+After the first deploy of `GuardIA-Data`, put the Teams webhook address into
+both secrets once, without echoing it (`read -rs` keeps it out of the shell
+history):
+
+```bash
+read -rs TEAMS_URL
+for s in guardia/teams-alerts-webhook guardia/teams-summary-webhook; do
+  aws secretsmanager put-secret-value --profile analytics --secret-id "$s" --secret-string "$TEAMS_URL"
+done
 ```
 
 On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
