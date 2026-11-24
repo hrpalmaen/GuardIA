@@ -42,10 +42,24 @@ class FakeSfn:
         class ExecutionAlreadyExists(Exception):  # noqa: N818
             pass
 
-    def __init__(self, *, remediation="auto", machine_type="STANDARD", redrive_error=None):
+    # An uncaught task failure: a redrive reruns the failed state.
+    UNCAUGHT = [
+        {"id": 1, "type": "ExecutionStarted", "previousEventId": 0},
+        {"id": 2, "type": "TaskStateEntered", "previousEventId": 1,
+         "stateEnteredEventDetails": {"name": "Fetch"}},
+        {"id": 3, "type": "TaskFailed", "previousEventId": 2,
+         "taskFailedEventDetails": {"error": "Genesys.ApiError", "cause": "429"}},
+        {"id": 4, "type": "ExecutionFailed", "previousEventId": 3,
+         "executionFailedEventDetails": {"error": "Genesys.ApiError"}},
+    ]  # fmt: skip
+
+    def __init__(
+        self, *, remediation="auto", machine_type="STANDARD", redrive_error=None, history=None
+    ):
         self.remediation = remediation
         self.machine_type = machine_type
         self.redrive_error = redrive_error
+        self.history = history if history is not None else self.UNCAUGHT
         self.statuses: dict[str, dict] = {}
         self.redriven: list[str] = []
         self.started: list[dict] = []
@@ -60,6 +74,9 @@ class FakeSfn:
 
     def describe_execution(self, executionArn):  # noqa: N803
         return self.statuses.get(executionArn, {"status": "FAILED"})
+
+    def get_execution_history(self, executionArn, **_):  # noqa: N803
+        return {"events": self.history}
 
     def redrive_execution(self, executionArn):  # noqa: N803
         if self.redrive_error:
@@ -321,3 +338,19 @@ def test_lambda_handlers_use_environment(open_, aws, monkeypatch):
         poll_module._aws_deps.cache_clear()
 
     assert out["recovered"] and polled["status"] == "FAILED"
+
+
+@pytest.mark.req("5.1")
+def test_restart_when_the_failure_was_caught_and_ended_in_a_fail_state(
+    open_, tables, real_executions
+):
+    """EMTSAS: a redrive would reenter the Fail state and fail again (AWS docs)."""
+    from tests.unit.conftest import EMTSAS_500
+
+    sfn = FakeSfn(history=real_executions.by_id(EMTSAS_500).history_events())
+    incident_id = open_()
+    out = redrive_or_restart({"incident_id": incident_id}, _deps(tables, sfn), now=bogota(4, 5))
+
+    assert out["strategy"] == "restart"
+    assert sfn.redriven == []
+    assert len(sfn.started) == 1

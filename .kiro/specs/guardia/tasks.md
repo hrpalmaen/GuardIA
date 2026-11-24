@@ -197,9 +197,10 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 13.3_
 
 - [ ] 9. End-to-end tests (depends on 6.5, 7.3)
-- [ ] 9.1 Create synthetic test state machines
+- [x] 9.1 Create synthetic test state machines
   - CDK test stack with tagged processes that fail on demand with 429, 403, and timeout.
   - Tests: the state machines are discovered by tags and generate incidents.
+  - Progress (T3): `GuardIA-Sim` deployed in the test account instead of synthetic 429/403 machines: the three Genesys orchestrators rebuilt from the sanitized histories plus `SIMNOAUTO` (escalate-only), one stub Lambda driven by the SimScenarios table (`http500`, `oom` with a real `Runtime.OutOfMemory`, `stuck`, `unknown`), and `scripts/sim.py` (`fail`, `run`, `missed`, `deadline`, `teams-down`, `clear`). Verified: discovered by tag, EMTSAS 500 relaunched and RESOLVED in 3 min 16 s, EMT12 OOM → States.Runtime classified with its real root cause, unknown and escalate-only escalate, IAM denies redrive without the tag.
   - _Requirements: 1.3, 13.4_
 
 - [ ] 9.2 Test the 429 → automatic recovery scenario

@@ -1,9 +1,15 @@
 """RedriveOrRestart (task 5.2 · requirements 5.1, 12.1, 12.4).
 
 Recovers the failed execution of an incident:
-  * Standard execution eligible for redrive -> `RedriveExecution` (same execution ARN).
-  * Otherwise (Express, not redrivable, expired) -> new execution with the
-    original input.
+  * Standard execution eligible for redrive, whose redrive would run the root
+    cause again -> `RedriveExecution` (same execution ARN).
+  * Otherwise (Express, not redrivable, expired, or the failure was caught and
+    the run ended in another state) -> new execution with the original input.
+
+A redrive restarts from the state that ended the execution. When the error was
+caught and the run ended in a `Fail` state or a later step (both real Genesys
+failures, EMTSAS and EMT12), a redrive only repeats that ending, so the
+execution is relaunched instead (`redrive_reruns_root_cause`).
 
 It only acts when the process carries `guardia:remediation=auto`. The check is
 repeated here on the state machine tag (defense in depth) in addition to the IAM
@@ -27,8 +33,10 @@ import boto3
 from botocore.exceptions import ClientError
 
 from guardia_common.audit import AuditRepository
+from guardia_common.incidents import recovery_run_name
 from guardia_common.logger import get_logger, log
 from guardia_common.models import Incident
+from guardia_common.root_cause import fetch_history, redrive_reruns_root_cause
 
 LOGGER = get_logger("guardia.redrive_or_restart")
 ACTOR = "RedriveOrRestart"
@@ -111,6 +119,14 @@ def _try_redrive(sfn: Any, incident: Incident) -> str | None:
         info = sfn.describe_execution(executionArn=incident.execution_arn)
         if info.get("status") not in REDRIVABLE_STATUSES:
             return None
+        if not redrive_reruns_root_cause(fetch_history(sfn, incident.execution_arn)):
+            log(
+                LOGGER,
+                logging.INFO,
+                "Redrive would repeat the final state, not the root cause; relaunching",
+                incident_id=incident.incident_id,
+            )
+            return None
         sfn.redrive_execution(executionArn=incident.execution_arn)
     except ClientError as err:
         code = err.response["Error"]["Code"]
@@ -131,7 +147,7 @@ def _restart(sfn: Any, incident: Incident, attempt: int) -> str:
     """New execution with the original input. The name carries the attempt so a retried
     Lambda invocation cannot start the same attempt twice (Step Functions rejects a
     repeated name for Standard executions)."""
-    name = f"{incident.incident_id}-r{attempt}"
+    name = recovery_run_name(incident.incident_id, attempt)
     try:
         resp = sfn.start_execution(
             stateMachineArn=incident.resource_arn,

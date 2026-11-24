@@ -92,6 +92,29 @@ for s in guardia/teams-alerts-webhook guardia/teams-summary-webhook; do
 done
 ```
 
+### Simulator (test account only)
+
+`GuardIA-Sim` deploys the three Genesys orchestrators rebuilt from the sanitized
+histories (same names, tags, and crons) plus `SIMNOAUTO` (`escalate-only`).
+GuardIA discovers and handles them like real processes; `scripts/sim.py` makes
+them fail on demand:
+
+```bash
+export AWS_PROFILE=analytics AWS_DEFAULT_REGION=us-east-1
+python scripts/sim.py status
+python scripts/sim.py fail EMTSAS http500 --times 1 && python scripts/sim.py run EMTSAS
+python scripts/sim.py fail EMT12 oom                   # real OutOfMemory, then States.Runtime
+python scripts/sim.py fail EMT12 stuck --wait-minutes 40
+python scripts/sim.py fail EMT22 unknown               # outside the ErrorCatalog
+python scripts/sim.py missed EMT22 --minutes 70        # before the cron; do not `run` that org
+python scripts/sim.py deadline EMT12 --in 40           # short deadline for SLA scenarios
+python scripts/sim.py teams-down --minutes 15
+python scripts/sim.py clear
+```
+
+After changing `infra/sim/definition.py`, regenerate and check the definitions
+with `python scripts/build_sim_definitions.py` (`--check` in CI).
+
 On WSL with the repository on a Windows drive (`/mnt/c`, `/mnt/d`), keep the
 virtual environment on the Linux file system as above: a `.venv` inside the
 repository makes the test suite about 40 times slower.

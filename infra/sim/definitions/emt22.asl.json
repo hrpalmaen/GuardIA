@@ -1,0 +1,174 @@
+{
+  "Comment": "GuardIA-Sim: EMT22 conversations orchestrator rebuilt from its history",
+  "StartAt": "BI-EMT22-GCRAW-IngestionControllerTask",
+  "States": {
+    "BI-EMT22-GCRAW-IngestionControllerTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${StubFunctionArn}",
+        "Payload": {
+          "org": "EMT22",
+          "step": "IngestionController",
+          "execution_id.$": "$$.Execution.Id",
+          "redrive_count.$": "$$.Execution.RedriveCount"
+        }
+      },
+      "ResultPath": "$.ingestionData",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.ingestionError",
+          "Next": "BI-EMT22-GCRAW-NotifyIngestionError"
+        }
+      ],
+      "Next": "BI-EMT22-GCRAW-CheckTasksToProcess"
+    },
+    "BI-EMT22-GCRAW-NotifyIngestionError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject": "EMT22 - IngestionController Error",
+        "Message.$": "States.Format('IngestionController FAILED: {}', $.ingestionError.Error)"
+      },
+      "ResultPath": null,
+      "Next": "BI-EMT22-GCRAW-FailIngestionController"
+    },
+    "BI-EMT22-GCRAW-FailIngestionController": {
+      "Type": "Fail",
+      "Error": "IngestionControllerError",
+      "Cause": "IngestionController failed"
+    },
+    "BI-EMT22-GCRAW-CheckTasksToProcess": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.ingestionData.Payload.simWaitSeconds",
+          "IsPresent": true,
+          "Next": "BI-EMT22-GCRAW-SimStuckWait"
+        },
+        {
+          "Variable": "$.ingestionData.Payload.totalTasks",
+          "NumericGreaterThan": 0,
+          "Next": "BI-EMT22-GCRAW-FetchRawDataMap"
+        }
+      ],
+      "Default": "BI-EMT22-GCRAW-NoTasksToProcess"
+    },
+    "BI-EMT22-GCRAW-SimStuckWait": {
+      "Type": "Wait",
+      "SecondsPath": "$.ingestionData.Payload.simWaitSeconds",
+      "Next": "BI-EMT22-GCRAW-FetchRawDataMap"
+    },
+    "BI-EMT22-GCRAW-NoTasksToProcess": {
+      "Type": "Succeed"
+    },
+    "BI-EMT22-GCRAW-FetchRawDataMap": {
+      "Type": "Map",
+      "ItemsPath": "$.ingestionData.Payload.tasks",
+      "ItemSelector": {
+        "task.$": "$$.Map.Item.Value"
+      },
+      "MaxConcurrency": 5,
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "BI-EMT22-GCRAW-FetchRawConversationsTask",
+        "States": {
+          "BI-EMT22-GCRAW-FetchRawConversationsTask": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${StubFunctionArn}",
+              "Payload": {
+                "org": "EMT22",
+                "step": "FetchRawConversations",
+                "execution_id.$": "$$.Execution.Id",
+                "redrive_count.$": "$$.Execution.RedriveCount",
+                "task.$": "$.task"
+              }
+            },
+            "OutputPath": "$.Payload",
+            "Next": "BI-EMT22-GCRAW-CheckRecordsProcessed"
+          },
+          "BI-EMT22-GCRAW-CheckRecordsProcessed": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.recordsProcessed",
+                "NumericGreaterThan": 0,
+                "Next": "BI-EMT22-GCRAW-ProcessConversationSplitterTask"
+              }
+            ],
+            "Default": "BI-EMT22-GCRAW-SkipSplitterNoRecords"
+          },
+          "BI-EMT22-GCRAW-ProcessConversationSplitterTask": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${StubFunctionArn}",
+              "Payload": {
+                "org": "EMT22",
+                "step": "ProcessConversationSplitter",
+                "execution_id.$": "$$.Execution.Id",
+                "redrive_count.$": "$$.Execution.RedriveCount",
+                "records.$": "$.recordsProcessed"
+              }
+            },
+            "OutputPath": "$.Payload",
+            "End": true
+          },
+          "BI-EMT22-GCRAW-SkipSplitterNoRecords": {
+            "Type": "Pass",
+            "Result": {
+              "messagesSent": 0
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.mapResults",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.mapError",
+          "Next": "BI-EMT22-GCRAW-NotifyMapError"
+        }
+      ],
+      "Next": "BI-EMT22-GCRAW-UpdateCheckpointTask"
+    },
+    "BI-EMT22-GCRAW-NotifyMapError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject": "EMT22 - Map Error",
+        "Message.$": "States.Format('Map FAILED: {}', $.mapError.Error)"
+      },
+      "ResultPath": null,
+      "Next": "BI-EMT22-GCRAW-UpdateCheckpointTask"
+    },
+    "BI-EMT22-GCRAW-UpdateCheckpointTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${StubFunctionArn}",
+        "Payload": {
+          "org": "EMT22",
+          "step": "UpdateCheckpointStatus",
+          "execution_id.$": "$$.Execution.Id",
+          "redrive_count.$": "$$.Execution.RedriveCount",
+          "messagesSent.$": "$.mapResults[0].messagesSent"
+        }
+      },
+      "ResultPath": "$.checkpoint",
+      "End": true
+    }
+  }
+}

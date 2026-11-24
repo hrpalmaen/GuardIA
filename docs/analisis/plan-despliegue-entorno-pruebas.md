@@ -81,6 +81,10 @@ GuardIA no distingue el simulador de los procesos reales: ve ejecuciones reales 
 - **Reintentos de Step Functions:** los historiales no muestran que haya `Retry` en los estados. Se asume que no hay, y en los fixtures los reintentos visibles son internos de la Lambda.
 - **Concurrencia del Map y timeouts:** valores razonables, porque no afectan lo que GuardIA observa.
 - **Crons (H8):** EMT12 cada hora a las :30, EMT22 y EMTSAS a las :00. En pruebas se pueden reprogramar para que los escenarios caigan en horario laboral.
+- **Al construir el simulador se agregaron estos supuestos** (detalle en `infra/sim/definition.py`):
+  - Si no hay tareas, `CheckTasksToProcess` termina en `NoTasksToProcess` (`Succeed`). Ningún historial muestra ese camino.
+  - Cada paso llama a la única Lambda de reemplazo con `{org, step, ejecución, RedriveCount}`, para que un escenario falle una ejecución y deje pasar su redrive o su relanzamiento.
+  - `SimStuckWait` existe solo en el simulador, para el escenario `stuck`.
 
 ## 5. Fases
 
@@ -213,14 +217,35 @@ Cada PR se despliega en `analytics` al terminar.
 
 **Fuera de la Fase B (P9):** `DailySummary` y su envío (7.2 y 7.3), la agrupación (6.6) y el agente (4.2 y 4.3).
 
-### Fase C · Simulador en la nube (solo pruebas)
+### Fase C · Simulador en la nube (solo pruebas) ✅
 
-1. Un script que genera las 3 definiciones ASL a partir de los historiales de los fixtures.
-2. El stack `GuardIA-Sim` con las máquinas de estado, sus etiquetas `guardia:*`, las reglas de cron, las Lambdas de reemplazo, la tabla de escenarios y el tópico SNS de pruebas.
-3. Un comando para activar escenarios, por ejemplo `python scripts/sim.py falla EMTSAS 500 --veces 1`.
-4. **"Teams caído":** el simulador cambia por un rato el secreto del webhook a una dirección inválida y luego lo restaura. GuardIA no se modifica para esto.
-5. La persona de turno se toma de `GUARDIA_ONCALL_EMAIL` (sección 5.1); no hay que cargar calendario.
-6. **Protección:** el stack `GuardIA-Sim` se niega a desplegarse si `env=prod`.
+Desplegado en `analytics` el 2026-11-24 (T3). Cómo se usa: README, sección "Simulador".
+
+| Pieza | Qué es |
+|---|---|
+| `infra/sim/definition.py` | La plantilla del orquestador, reconstruida desde los historiales; cada parte dice de qué historial sale |
+| `scripts/build_sim_definitions.py` | Genera `infra/sim/definitions/*.asl.json` y comprueba que **los 6 historiales reales** encajan: cada estado visitado existe con el mismo tipo (`--check` falla si no) |
+| `GuardIA-Sim` | Las 3 máquinas con sus nombres, etiquetas y crons reales, más `SIMNOAUTO` (`escalate-only`); una Lambda de reemplazo de 128 MB; la tabla `SimScenarios`; el tópico SNS; y un conserje que restaura los escenarios vencidos. Se niega a sintetizar con `env=prod` |
+| `scripts/sim.py` | `status`, `fail ORG http500\|oom\|stuck\|unknown --times N`, `run`, `missed`, `deadline`, `teams-down`, `clear` |
+
+**Hallazgo importante, para producción y no solo para el simulador (D32).** AWS reinicia un redrive en el estado que **terminó** la ejecución, no en el que causó la falla. Las dos fallas reales capturan el error y terminan en otro lado:
+- EMTSAS termina en el `Fail`, que vuelve a fallar.
+- EMT12 termina en `UpdateCheckpointTask`, con un JSONPath que solo existe en el camino de éxito.
+
+Con el redrive, GuardIA habría gastado los 2 intentos sin arreglar nada. Ahora `RedriveOrRestart` solo hace redrive cuando así se vuelve a ejecutar la causa raíz. En los demás casos relanza con la entrada original, lo cual es seguro porque `guardia:remediation=auto` garantiza que repetir no duplica datos.
+
+**Verificado en la nube:**
+
+| Escenario | Resultado |
+|---|---|
+| Procesos simulados | `DiscoverProcesses` encontró los 4 por etiqueta, con su cron; `SIMNOAUTO` quedó como `escalate-only` |
+| EMT22 sin escenario | `SUCCEEDED`, recorriendo los mismos estados del historial real; no se abre incidente |
+| EMTSAS `http500` una vez | Falla igual que el real. GuardIA abre el incidente en **2,6 s**, decide `REMEDIATE`, **relanza** (no hace redrive) y lo deja `RESOLVED` en **3 min 16 s** |
+| EMT12 `oom` | `Runtime.OutOfMemory` real → `States.Runtime`, igual que el real. GuardIA encuentra la causa raíz y escala |
+| EMT22 `unknown` | `SchemaValidationError` → `unknown` → escala (`unknown-no-agent`; aquí entrará el agente de T8) |
+| SIMNOAUTO `http500` | Escala con `process-escalate-only`. La simulación de IAM confirma que el redrive y el relanzamiento se niegan sin la etiqueta `auto` |
+
+**Cuidado al probar `missed`:** una ejecución lanzada a mano (`sim.py run`) dentro de los 10 minutos de tolerancia **cubre** el horario, y entonces no hay `MISSED_RUN`. Activa `missed` antes del cron y no lances nada a mano en esa organización.
 
 ### Fase D · Pruebas de punta a punta en la cuenta (tareas 9.1 a 9.4)
 
