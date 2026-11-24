@@ -85,3 +85,17 @@ def test_the_agent_limits_are_thresholds_like_the_rest() -> None:
         "agent-max-tool-output-chars",
         "agent-min-confidence",
     } <= set(DEFAULT_THRESHOLDS)
+
+
+# --------------------------------------------------------------- fast demo (D33)
+def test_environments_with_the_simulator_run_in_seconds_and_production_does_not() -> None:
+    for name in ("dev", "workshop"):
+        thresholds = environment(name).thresholds
+        assert thresholds["redrive-poll-interval-seconds"] == "5"
+        assert thresholds["default-retry-after-seconds"] == "5"
+        assert float(thresholds["reminder-interval-minutes"]) < 1
+
+    prod = environment("prod").thresholds
+    assert prod["redrive-poll-interval-seconds"] == "180"
+    assert prod["default-retry-after-seconds"] == "60"
+    assert prod["reminder-interval-minutes"] == "10"

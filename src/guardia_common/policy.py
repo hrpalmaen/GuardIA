@@ -85,6 +85,7 @@ class PolicyLimits:
     max_wait_seconds: int
     parallel_minutes_left: int
     agent_min_confidence: float = DEFAULT_AGENT_MIN_CONFIDENCE
+    default_retry_after_seconds: int = DEFAULT_RETRY_AFTER_S
 
     @classmethod
     def from_thresholds(cls, thresholds: Mapping[str, str]) -> PolicyLimits:
@@ -96,6 +97,9 @@ class PolicyLimits:
             parallel_minutes_left=int(thresholds["parallel-escalation-minutes-left"]),
             agent_min_confidence=float(
                 thresholds.get("agent-min-confidence", DEFAULT_AGENT_MIN_CONFIDENCE)
+            ),
+            default_retry_after_seconds=int(
+                thresholds.get("default-retry-after-seconds", DEFAULT_RETRY_AFTER_S)
             ),
         )
 
@@ -114,7 +118,12 @@ def retry_after_seconds(*texts: str | None) -> int | None:
     return None
 
 
-def wait_needed(incident: Incident, action: str | None = None, agent_wait: int = 0) -> int:
+def wait_needed(
+    incident: Incident,
+    action: str | None = None,
+    agent_wait: int = 0,
+    default_wait: int = DEFAULT_RETRY_AFTER_S,
+) -> int:
     """Seconds to wait before the redrive. `action` is the catalog action unless the
     agent's recommendation is being used (then `agent_wait` is its own suggestion)."""
     action = action or incident.catalog_action
@@ -123,7 +132,7 @@ def wait_needed(incident: Incident, action: str | None = None, agent_wait: int =
     indicated = retry_after_seconds(incident.root_cause, incident.cause)
     if indicated is not None:
         return indicated
-    return agent_wait or DEFAULT_RETRY_AFTER_S
+    return agent_wait or default_wait
 
 
 def decide(
@@ -192,7 +201,7 @@ def _rules(
     if opened and (now - opened).total_seconds() >= limits.window_minutes * 60:
         return escalate, "remediation-window-exceeded", 0, source
     agent_wait = (incident.agent_wait_seconds or 0) if source == SOURCE_AGENT else 0
-    wait = wait_needed(incident, action, agent_wait)
+    wait = wait_needed(incident, action, agent_wait, limits.default_retry_after_seconds)
     if wait > limits.max_wait_seconds:
         return escalate, "wait-too-long", 0, source
     if minutes_left <= limits.parallel_minutes_left:

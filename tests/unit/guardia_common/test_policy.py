@@ -169,6 +169,18 @@ def test_429_without_retry_after_uses_the_default_wait() -> None:
     assert run(inc).wait_seconds == DEFAULT_RETRY_AFTER_S
 
 
+@pytest.mark.req("5.2")
+def test_the_default_429_wait_is_a_threshold_and_a_stated_retry_after_still_wins() -> None:
+    fast = {**THRESHOLDS, "default-retry-after-seconds": "5"}
+    inc = incident(catalog_action="wait_and_redrive", cause="429 Too Many Requests")
+    stated = incident(
+        catalog_action="wait_and_redrive", root_cause="Genesys 429, Retry-After: 75", cause="x"
+    )
+
+    assert run(inc, thresholds=fast).wait_seconds == 5
+    assert run(stated, thresholds=fast).wait_seconds == 75
+
+
 def test_plain_redrive_does_not_wait() -> None:
     assert run(incident(cause="Retry-After: 300")).wait_seconds == 0
 

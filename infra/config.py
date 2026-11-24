@@ -27,6 +27,8 @@ DEFAULT_THRESHOLDS: dict[str, str] = {
     "remediation-max-attempts": "2",
     "remediation-window-minutes": "20",
     "max-wait-seconds": "600",
+    "default-retry-after-seconds": "60",  # D26: a 429 that does not say how long to wait
+    "redrive-poll-interval-seconds": "180",  # between two checks of a redrive in progress
     # Level 2 · escalation
     "reminder-interval-minutes": "10",
     "parallel-escalation-minutes-left": "30",
@@ -64,6 +66,17 @@ AGENT_AZURE_SECRET_NAME = "guardia/agent-azure-openai"  # noqa: S105 - a name
 AZURE_OPENAI = "azure_openai"
 BEDROCK = "bedrock"
 AGENT_PROVIDERS = (AZURE_OPENAI, BEDROCK)
+
+
+# Environments with simulated processes run fast, so a scenario takes seconds in a live
+# demo (D33): short polls and waits, and half-minute reminders. Production keeps the defaults.
+DEMO_THRESHOLDS: dict[str, str] = {
+    "remediation-enabled": "true",
+    "reminder-interval-minutes": "0.5",
+    "redrive-poll-interval-seconds": "5",
+    "default-retry-after-seconds": "5",
+    "missed-run-tolerance-minutes": "1",
+}
 
 
 class UnknownEnvironmentError(ValueError):
@@ -127,10 +140,7 @@ ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         name="dev",
         deploy_sim=True,
         retain_data=False,
-        threshold_overrides={
-            "remediation-enabled": "true",
-            "reminder-interval-minutes": "2",
-        },
+        threshold_overrides=DEMO_THRESHOLDS,
         agent_provider=AZURE_OPENAI,
     ),
     # Workshop account: simulated processes again, and the agent on Amazon
@@ -140,10 +150,7 @@ ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         name="workshop",
         deploy_sim=True,
         retain_data=False,
-        threshold_overrides={
-            "remediation-enabled": "true",
-            "reminder-interval-minutes": "2",
-        },
+        threshold_overrides=DEMO_THRESHOLDS,
         agent_provider=BEDROCK,
         agent_model="amazon.nova-pro-v1:0",
     ),
