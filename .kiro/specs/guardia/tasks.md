@@ -89,31 +89,34 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 4.5, 4.6_
 
 - [ ] 5. Policy and remediation (depends on 3.1, 4.3)
-- [ ] 5.1 Implement `RemediationPolicy`
+- [x] 5.1 Implement `RemediationPolicy`
   - Pure function that returns `REMEDIATE`, `REMEDIATE_AND_ESCALATE`, or `ESCALATE` according to classification, `remediation`, attempts (maximum 2), elapsed minutes (maximum 20), indicated wait (maximum 10 minutes), and remaining minutes (30 or less).
   - Table-driven tests covering each criterion of requirements 5 and 6.
+  - Progress (T4): `guardia_common/policy.py` (10 ordered rules, observe-only, `escalation_running`) and the `remediation_policy` Lambda, which reads everything from the Incidents table. Deployed.
   - _Requirements: 5.1, 5.3, 5.5, 5.6, 6.1_
 
-- [ ] 5.2 Implement the `RedriveOrRestart` Lambda
+- [x] 5.2 Implement the `RedriveOrRestart` Lambda
   - Redrive if the execution is Standard and eligible; otherwise a new execution with the original input.
   - IAM policy bounded by the `guardia:remediation=auto` tag condition.
   - Tests: redrive, relaunch, and rejection of a resource without the tag.
   - _Requirements: 5.1, 12.1, 12.4_
 
-- [ ] 5.3 Implement the `PollExecution` Lambda
+- [x] 5.3 Implement the `PollExecution` Lambda
   - Query the status of the recovered execution and return the final result.
   - Tests: `SUCCEEDED`, `FAILED`, and `RUNNING`.
   - _Requirements: 5.4_
 
-- [ ] 5.4 Implement the `Retry-After` wait state
+- [x] 5.4 Implement the `Retry-After` wait state
   - Extract the wait time from the error cause, cap it at 600 s, and escalate if it is exceeded.
+  - Progress (T4): `retry_after_seconds` reads `Retry-After`, `retryAfter`, and `retry after N s/ms`; a 429 without one waits 60 s (D26). The flow waits with `SecondsPath: $.policy.wait_seconds`.
   - Tests: valid value, missing, above the maximum.
   - _Requirements: 5.2, 5.3_
 
-- [ ] 5.5 Define the `GuardIA-Incident-Flow` state machine
+- [x] 5.5 Define the `GuardIA-Incident-Flow` state machine
   - States: `Classify` → `InvokeAgent` (if unknown) → `Policy` → `Remediate` (wait, redrive, poll, verify) or `Escalate` → `CloseIncident`.
   - Parallel escalation branch when the policy returns `REMEDIATE_AND_ESCALATE`.
   - Progress (T1): the flow is composed in `infra/stacks/flow_stack.py` from `flow_recovery.build_recovery` (T4) and `flow_escalation.build_escalation` (T5), with placeholders; `UpdateIncidentStatus` is the only status writer (idempotent, `RESOLVED` is final). Deployed; both routes verified in the test account.
+  - Progress (T4): recovery branch done (`flow_recovery.py`): policy choice, Retry-After wait, RedriveOrRestart with catch, 3-minute poll loop bounded to 10 polls, RESOLVED only on SUCCEEDED, and the parallel branch for `REMEDIATE_AND_ESCALATE`. Escalation runs as its own state machine, `GuardIA-Escalation-Flow` (D25). RedriveOrRestart and PollExecution deployed; redrive and restart limited by IAM to `guardia:remediation=auto` (executions inherit the state machine tags). Verified in the test account: watchdog escalation, rejected recovery (fail-closed tag check), and the parallel branch. Pending with the simulator (T3/T7): a real redrive ending in SUCCEEDED, attempts exhausted, and the IAM deny on a process without the tag.
   - Tests: definition tests with the Step Functions TestState API for each branch.
   - _Requirements: 5.4, 5.5, 6.1, 13.1_
 

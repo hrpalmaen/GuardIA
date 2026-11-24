@@ -10,7 +10,8 @@ from config import environment
 from guardia_common.incidents import STATUS_CHANGE_PATTERN, WATCHDOG_PATTERN
 from stacks.data_stack import AUDIT_DENIED_ACTIONS, DataStack
 from stacks.detection_stack import DetectionStack, event_pattern
-from stacks.flow_stack import FLOW_NAME, FlowStack
+from stacks.flow_recovery import MAX_POLLS, REMEDIATION_TAG_CONDITION
+from stacks.flow_stack import ESCALATION_FLOW_NAME, FLOW_NAME, FlowStack
 
 NO_BUNDLING = {"aws:cdk:bundling-stacks": []}
 ENV = cdk.Environment(account="123456789012", region="us-east-1")
@@ -55,16 +56,23 @@ def _function_env(template: Template, description_prefix: str) -> dict:
 
 
 # --------------------------------------------------------------------------- flow
-def _definition(template: Template) -> dict:
-    (machine,) = template.find_resources("AWS::StepFunctions::StateMachine").values()
-    parts = machine["Properties"]["DefinitionString"]["Fn::Join"][1]
-    return json.loads("".join(p if isinstance(p, str) else "ARN" for p in parts))
+def _definition(template: Template, name: str = FLOW_NAME) -> dict:
+    """The parsed definition of one state machine; ARNs are replaced by "ARN"."""
+    machines = template.find_resources("AWS::StepFunctions::StateMachine").values()
+    for machine in machines:
+        if machine["Properties"].get("StateMachineName", name) != name:
+            continue
+        body = machine["Properties"]["DefinitionString"]
+        if isinstance(body, str):
+            return json.loads(body)
+        return json.loads("".join(p if isinstance(p, str) else "ARN" for p in body["Fn::Join"][1]))
+    raise AssertionError(f"no state machine named {name}")
 
 
 def test_flow_state_machine_starts_with_classify_incident(stacks) -> None:
-    machines = stacks["flow"].find_resources("AWS::StepFunctions::StateMachine")
-    (machine,) = machines.values()
-    assert machine["Properties"]["StateMachineName"] == FLOW_NAME
+    machines = stacks["flow"].find_resources("AWS::StepFunctions::StateMachine").values()
+    names = {m["Properties"]["StateMachineName"] for m in machines}
+    assert names == {FLOW_NAME, ESCALATION_FLOW_NAME}
     definition = _definition(stacks["flow"])
     assert definition["StartAt"] == "ClassifyIncident"
     assert definition["States"]["ClassifyIncident"]["ResultPath"] == "$.classification"
@@ -144,23 +152,16 @@ def test_no_lambda_may_update_or_delete_audit_events(stacks, name) -> None:
 
 
 # ------------------------------------------------------------------------ T1
-def test_flow_routes_recoverable_incidents_to_recovery_and_the_rest_to_escalation(stacks) -> None:
-    states = _definition(stacks["flow"])["States"]
-    assert states["ClassifyIncident"]["Next"] == "RouteByClassification"
-    route = states["RouteByClassification"]
-    (choice,) = route["Choices"]
-    assert choice == {
-        "Variable": "$.classification.classification",
-        "StringEquals": "auto_recoverable",
-        "Next": "RecoveryPlaceholder",
-    }
-    assert route["Default"] == "EscalationPlaceholder"
-    assert states["RecoveryPlaceholder"]["Next"] == "RecoveryPending"
-    assert states["EscalationPlaceholder"]["Next"] == "EscalationPending"
+def test_escalation_flow_starts_with_the_t5_chain(stacks) -> None:
+    escalation = _definition(stacks["flow"], ESCALATION_FLOW_NAME)
+    assert escalation["StartAt"] == "EscalationPlaceholder"  # T5 replaces it
 
 
 def test_stacks_expose_their_functions_for_observability(stacks) -> None:
-    assert set(stacks["flow_stack"].functions) == {"ClassifyIncident", "UpdateIncidentStatus"}
+    assert set(stacks["flow_stack"].functions) == {
+        "ClassifyIncident", "UpdateIncidentStatus",
+        "RemediationPolicy", "RedriveOrRestart", "PollExecution",
+    }  # fmt: skip
     assert set(stacks["detection_stack"].functions) == {
         "DiscoverProcesses", "MissedRunWatchdog", "OpenIncident",
     }  # fmt: skip
@@ -203,3 +204,91 @@ def test_flow_context_rejects_duplicate_functions_and_builds_status_states() -> 
         "incident_id.$": "$.incident_id", "status": "ESCALATED", "details": {"reason": "x"},
     }  # fmt: skip
     assert isinstance(fn.function, lambda_.Function)
+
+
+# ------------------------------------------------------------------------ T4
+@pytest.mark.req("5.1")
+def test_policy_decides_after_classification(stacks) -> None:
+    states = _definition(stacks["flow"])["States"]
+    assert states["ClassifyIncident"]["Next"] == "RemediationPolicy"
+    assert states["RemediationPolicy"]["ResultPath"] == "$.policy"
+    decision = states["PolicyDecision"]
+    targets = {c["StringEquals"]: c["Next"] for c in decision["Choices"]}
+    assert targets == {
+        "REMEDIATE": "WaitRetryAfter",
+        "REMEDIATE_AND_ESCALATE": "RemediateAndEscalate",
+    }
+    assert decision["Default"] == "EscalateByPolicy"
+
+
+@pytest.mark.req("5.2")
+def test_recovery_waits_the_policy_seconds_then_redrives(stacks) -> None:
+    states = _definition(stacks["flow"])["States"]
+    assert states["WaitRetryAfter"]["SecondsPath"] == "$.policy.wait_seconds"
+    assert states["WaitRetryAfter"]["Next"] == "RedriveOrRestart"
+    (catch,) = states["RedriveOrRestart"]["Catch"]
+    assert set(catch["ErrorEquals"]) == {"RemediationNotAllowedError", "AttemptsExhaustedError"}
+    assert catch["Next"] == "EscalateAfterRecoveryRejected"
+
+
+@pytest.mark.req("5.4")
+def test_poll_loop_resolves_only_on_success_and_is_bounded(stacks) -> None:
+    states = _definition(stacks["flow"])["States"]
+    assert states["WaitBeforePoll"]["Seconds"] == 180
+    finished = states["RecoveryFinished?"]
+    nexts = [c["Next"] for c in finished["Choices"]]
+    assert nexts == ["MarkResolved", "RemediationPolicy", "CountPoll"]
+    bound = finished["Choices"][2]
+    assert bound == {"Variable": "$.polls.count", "NumericLessThan": MAX_POLLS, "Next": "CountPoll"}
+    assert finished["Default"] == "RemediationPolicy"  # too long: the policy decides again
+    payload = states["MarkResolved"]["Parameters"]["Payload"]
+    assert payload["status"] == "RESOLVED"
+    assert payload["details"] == {"resolved_by": "guardia_recovery"}
+
+
+@pytest.mark.req("6.1")
+def test_little_time_left_runs_recovery_and_escalation_in_parallel(stacks) -> None:
+    parallel = _definition(stacks["flow"])["States"]["RemediateAndEscalate"]
+    recovery, escalation = parallel["Branches"]
+    assert recovery["StartAt"] == "ParallelWaitRetryAfter"
+    again = recovery["States"]["ParallelRemediationPolicy"]["Parameters"]
+    assert again["escalation_running"] is True
+    assert escalation["StartAt"] == "EscalateInParallel"
+    catches = escalation["States"]["EscalateInParallel"]["Catch"]
+    assert catches[-1]["ErrorEquals"] == ["States.ALL"]  # Teams down does not stop the recovery
+
+
+def test_every_escalation_runs_the_escalation_flow_once_per_incident(stacks) -> None:
+    states = _definition(stacks["flow"])["States"]
+    for name in ("EscalateByPolicy", "EscalateAfterRecoveryRejected"):
+        state = states[name]
+        assert state["Resource"].endswith("states:startExecution.sync:2")
+        assert state["Parameters"]["Name.$"] == "$.incident_id"
+        assert state["Catch"][0]["ErrorEquals"] == ["StepFunctions.ExecutionAlreadyExistsException"]
+
+
+@pytest.mark.req("12.1")
+def test_redrive_and_restart_require_the_remediation_auto_tag(stacks) -> None:
+    acting = {"states:RedriveExecution", "states:StartExecution"}
+    for statement in _statements(stacks["flow"]):
+        actions = set(_actions(statement)) & acting
+        if not actions:
+            continue
+        if statement.get("Sid") in ("RedriveOnlyRemediationAuto", "RestartOnlyRemediationAuto"):
+            assert statement["Condition"] == REMEDIATION_TAG_CONDITION
+        else:
+            # only the incident flow may start the escalation flow, and only that one
+            assert actions == {"states:StartExecution"}
+            assert "EscalationFlow" in json.dumps(statement["Resource"])
+
+
+@pytest.mark.req("12.4")
+def test_policy_and_poll_cannot_act_on_processes(stacks) -> None:
+    template = stacks["flow"]
+    for resource in template.find_resources("AWS::IAM::Policy").values():
+        name = json.dumps(resource["Properties"]["Roles"])
+        if "RemediationPolicy" in name or "PollExecution" in name:
+            for statement in resource["Properties"]["PolicyDocument"]["Statement"]:
+                assert not {"states:RedriveExecution", "states:StartExecution"} & set(
+                    _actions(statement)
+                )

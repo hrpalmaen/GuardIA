@@ -11,7 +11,7 @@ Cada tarea de este documento es una **ficha autocontenida**: tiene el objetivo, 
 | [T0](#t0--pendientes-de-repositorio) | Pendientes de repositorio (PR, tareas sin marcar) | — | Hellen | Pequeña |
 | [T1](#t1--esqueleto-del-flujo-y-updateincidentstatus) | ✅ Esqueleto del flujo y `UpdateIncidentStatus` | — | Hellen | Pequeña |
 | [T3](#t3--guardia-sim-pr-3) | `GuardIA-Sim`: procesos simulados en la nube (PR 3) | — | Por definir | Grande |
-| [T4](#t4--remediationpolicy-y-rama-de-recuperación-pr-4) | `RemediationPolicy` y rama de recuperación (PR 4) | T1 | Daniela | Mediana |
+| [T4](#t4--remediationpolicy-y-rama-de-recuperación-pr-4) | ✅ `RemediationPolicy` y rama de recuperación (PR 4) | T1 | Hellen | Mediana |
 | [T5](#t5--rama-de-escalamiento-pr-5) | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED`, `ResolveOnSuccess` (PR 5) | T1 | Laura | Grande |
 | [T6](#t6--guardia-observability-pr-6) | `GuardIA-Observability`: alarmas, DLQ, heartbeat (PR 6) | T1 | Por definir | Mediana |
 | [T8](#t8--agente-de-ia-con-agentport-azure-en-pruebas-bedrock-en-el-workshop) | **Agente de IA** con `AgentPort`: Azure OpenAI en pruebas, Bedrock en el workshop | T1 | Por definir | Grande |
@@ -295,7 +295,19 @@ Los 5 pasos funcionan, las pruebas pasan y el PR entró a `main`. Al terminar, a
 
 ## T4 · `RemediationPolicy` y rama de recuperación (PR 4)
 
-**Responsable:** Daniela. **Tamaño:** mediana. **Depende de:** T1. Para probar en la nube conviene tener T3.
+**Responsable:** Hellen (antes sugerida para Daniela). **Tamaño:** mediana. **Depende de:** T1. Para probar en la nube conviene tener T3.
+
+> **✅ Hecha (2026-11-24), desplegada en `analytics`.** Diferencias con lo planeado en esta ficha:
+> - **El escalamiento es su propia máquina de estados, `GuardIA-Escalation-Flow`** (D25). Step Functions no permite usar los mismos estados dentro de un `Parallel` y fuera de él. Por eso `build_recovery(ctx, escalate)` recibe una función `escalate(nombre_estado, siguiente)`, y no una cadena. Cada lugar que escala crea su propio paso `startExecution.sync`, con el `incident_id` como nombre: un incidente se escala una sola vez.
+> - **`RedriveOrRestart` ya ponía el estado `REMEDIATING`** al contar el intento, así que no hay un paso `SetRemediating`.
+> - **El `Retry-After` por defecto es 60 s** (D26).
+> - **La condición por etiqueta en `RedriveExecution` funciona,** confirmado en la documentación de AWS: las ejecuciones heredan las etiquetas de su máquina de estados.
+> - **Pendiente de verificar con el simulador (T3/T7):**
+>   - un redrive real que termina en `SUCCEEDED` y deja el incidente en `RESOLVED`;
+>   - el segundo intento y `attempts-exhausted`;
+>   - la negación de IAM sobre `SIM-NoAuto`.
+>
+>   En la nube ya se verificaron: el escalamiento por regla, la recuperación rechazada (la Lambda falla cerrado si no puede leer la etiqueta) y la rama en paralelo.
 
 ### Objetivo
 Hacer real el Nivel 1: decidir con reglas fijas si se recupera, se escala o se hacen las dos cosas, y ejecutar la recuperación (espera, redrive, consultas y cierre). Cubre las tareas 5.1, 5.4 y 5.5 (rama de recuperación) y despliega 5.2 y 5.3, que ya están programadas.
@@ -451,6 +463,12 @@ Hacer real el Nivel 2: avisar a la persona de turno en el canal real de Teams co
   - Permisos: `GetItem` sobre `ProcessRegistry`; `Query` sobre el índice de `Incidents`; `states:SendTaskSuccess` sobre `GuardIA-Incident-Flow` con `flow.grant_task_response(fn)`; `grant_append_events`.
 
 **5. La cadena de escalamiento en `infra/stacks/flow_escalation.py`:**
+
+> **Importante (cambio de T4, D25):** la cadena que devuelve `build_escalation(ctx)` es la definición completa de **su propia máquina de estados, `GuardIA-Escalation-Flow`**, y no una rama dentro de `GuardIA-Incident-Flow`. Qué implica:
+> - **Su entrada es** `{"incident_id", "classification", "policy"}`. `policy.decision == "REMEDIATE_AND_ESCALATE"` significa que el escalamiento corre en paralelo con la recuperación; eso es el `parallel=true` de `SendEscalation`.
+> - **No está `$.recovery` ni `$.poll`:** el diagnóstico se arma desde `IncidentEvents`, como dice el punto 2.
+> - **La firma de `build_escalation(ctx)` no cambia,** y `FlowStack` se encarga de crear la máquina.
+> - **`ResolveOnSuccess` debe enviar el token a la ejecución de `GuardIA-Escalation-Flow`,** que es la que espera. Los permisos son `grant_task_response` sobre `flow_stack.escalation_state_machine`.
 ```
 SetEscalated (UpdateIncidentStatus ESCALATED)
 ─► ResolveOnCall ($.oncall)
@@ -506,7 +524,7 @@ Que el equipo se entere cuando el que falla es **GuardIA**: alarmas de sus propi
 - **El tópico SNS `guardia-alarms`** tiene una suscripción por correo al **correo del equipo**, tomado de una variable nueva `GUARDIA_ALARM_EMAIL` del `.env`; agrégala a `.env.example`. **No hace falta SES:** SNS envía su propio correo de confirmación, que alguien tiene que aceptar una vez (pendiente de la Fase A).
 - **Alarmas, todas con destino el tópico SNS:**
   - Por cada `GuardiaFunction`: `Errors > 0` en 5 minutos, y mensajes visibles en su DLQ (`ApproximateNumberOfMessagesVisible > 0`).
-  - Sobre `GuardIA-Incident-Flow`: `ExecutionsFailed > 0`. Aquí cae `NotificationFailed` de T5.
+  - Sobre `GuardIA-Incident-Flow` y `GuardIA-Escalation-Flow` (D25): `ExecutionsFailed > 0`. Aquí cae `NotificationFailed` de T5. Están en `FlowStack.state_machine` y `FlowStack.escalation_state_machine`.
   - Sobre las reglas de `GuardIA-Detection`: `FailedInvocations > 0`.
 - **Heartbeat (8.2 y 13.2):**
   - Que lo emita **`MissedRunWatchdog` en cada ciclo** (cada 5 minutos), como métrica EMF `GuardIA/Heartbeat` con valor 1. Así prueba que funcionan juntos el horario, la Lambda, la tabla y los permisos.

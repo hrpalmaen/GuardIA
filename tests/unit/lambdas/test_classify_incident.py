@@ -5,7 +5,7 @@ import pytest
 from lambdas.classify_incident.handler import Deps, IncidentNotFoundError, classify_incident
 from lambdas.open_incident.handler import Deps as OpenDeps
 from lambdas.open_incident.handler import open_incident
-from tests.unit.conftest import SM_PREFIX, bogota, status_event
+from tests.unit.conftest import EXEC_PREFIX, SM_PREFIX, bogota, status_event
 
 
 @pytest.fixture
@@ -100,6 +100,19 @@ CASES = [
         0,
         marks=pytest.mark.req("4.4"),
         id="missed-run",
+    ),
+    pytest.param(
+        {
+            "kind": "STUCK_RUN",
+            "resource_arn": f"{SM_PREFIX}:genesys-master-orgA",
+            "execution_arn": f"{EXEC_PREFIX}:genesys-master-orgA:run-9",
+            "started_at": "2026-11-12T01:00:00-05:00",
+        },
+        "requires_escalation",
+        "escalate",
+        0,
+        marks=pytest.mark.req("4.4"),
+        id="stuck-run",  # D22: never acted on while it may still be running
     ),
     pytest.param(
         failed("KeyError", "KeyError: 'participants'"),

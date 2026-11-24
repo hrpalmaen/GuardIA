@@ -3,7 +3,9 @@
 Pure functions: no AWS calls, so they are fully table-testable.
 
 Rules, in order:
-1. `MISSED_RUN` is always `requires_escalation` (4.4), before looking at the catalog.
+1. `MISSED_RUN` and `STUCK_RUN` are always `requires_escalation` (4.4, D22), before
+   looking at the catalog: nothing failed that a redrive could fix, and acting on
+   a run that is still going is not safe without its owner.
 2. The subject is the root cause from the execution history plus the final
    error and cause (all sanitized).
    Catalog rows for the incident's process type, then rows for `"*"`.
@@ -69,7 +71,7 @@ def _ordered(entries: list[CatalogEntry], process_type: str) -> list[CatalogEntr
 
 
 def classify(incident: Incident, catalog: list[CatalogEntry]) -> ClassificationResult:
-    if incident.kind == IncidentKind.MISSED_RUN:
+    if incident.kind in (IncidentKind.MISSED_RUN, IncidentKind.STUCK_RUN):
         return ClassificationResult(
             classification=Classification.REQUIRES_ESCALATION,
             source="rule",
