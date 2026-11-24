@@ -135,29 +135,35 @@ def decide(
 class DemoStepFunctions:
     """Step Functions as the recovery Lambdas see it.
 
-    moto does not implement RedriveExecution, so a redrive is simulated here: the
-    same execution is RUNNING for `RECOVERY_TIME` and then SUCCEEDED. Everything
-    else goes to the replay client.
+    moto does not implement RedriveExecution, so a recovery is simulated here:
+    the redriven execution, or the relaunched one when a redrive would only
+    repeat the final state (EMTSAS ends in a Fail state), is RUNNING for
+    `RECOVERY_TIME` and then SUCCEEDED. Everything else goes to the replay client.
     """
 
     def __init__(self, replay: Any, clock: Callable[[], datetime]):
         self._replay = replay
         self._clock = clock
-        self._redriven: dict[str, tuple[datetime, datetime]] = {}
+        self._recovering: dict[str, tuple[datetime, datetime]] = {}
 
     def redrive_execution(self, **params: Any) -> dict:
         now = self._clock()
-        self._redriven[params["executionArn"]] = (now, now + RECOVERY_TIME)
+        self._recovering[params["executionArn"]] = (now, now + RECOVERY_TIME)
         return {"redriveDate": now}
 
+    def start_execution(self, **params: Any) -> dict:
+        now = self._clock()
+        arn = params["stateMachineArn"].replace(":stateMachine:", ":execution:", 1)
+        arn = f"{arn}:{params['name']}"
+        self._recovering[arn] = (now, now + RECOVERY_TIME)
+        return {"executionArn": arn, "startDate": now}
+
     def describe_execution(self, **params: Any) -> dict:
-        info = self._replay.describe_execution(**params)
-        window = self._redriven.get(params["executionArn"])
+        window = self._recovering.get(params["executionArn"])
         if window is None:
-            return info
+            return self._replay.describe_execution(**params)
         since, ends = window
-        info = {k: v for k, v in info.items() if k not in ("error", "cause", "stopDate")}
-        info["redriveDate"] = since
+        info = {"executionArn": params["executionArn"], "startDate": since}
         if self._clock() < ends:
             info["status"] = "RUNNING"
         else:

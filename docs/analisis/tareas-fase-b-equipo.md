@@ -10,7 +10,7 @@ Cada tarea de este documento es una **ficha autocontenida**: tiene el objetivo, 
 |---|---|---|---|---|
 | [T0](#t0--pendientes-de-repositorio) | Pendientes de repositorio (PR, tareas sin marcar) | — | Hellen | Pequeña |
 | [T1](#t1--esqueleto-del-flujo-y-updateincidentstatus) | ✅ Esqueleto del flujo y `UpdateIncidentStatus` | — | Hellen | Pequeña |
-| [T3](#t3--guardia-sim-pr-3) | `GuardIA-Sim`: procesos simulados en la nube (PR 3) | — | Por definir | Grande |
+| [T3](#t3--guardia-sim-pr-3) | ✅ `GuardIA-Sim`: procesos simulados en la nube (PR 3) | — | Hellen | Grande |
 | [T4](#t4--remediationpolicy-y-rama-de-recuperación-pr-4) | ✅ `RemediationPolicy` y rama de recuperación (PR 4) | T1 | Hellen | Mediana |
 | [T5](#t5--rama-de-escalamiento-pr-5) | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED`, `ResolveOnSuccess` (PR 5) | T1 | Laura | Grande |
 | [T6](#t6--guardia-observability-pr-6) | `GuardIA-Observability`: alarmas, DLQ, heartbeat (PR 6) | T1 | Por definir | Mediana |
@@ -207,7 +207,14 @@ El PR entró a `main`, se desplegó en dev, y un `MISSED_RUN` enviado a mano (co
 
 ## T3 · `GuardIA-Sim` (PR 3)
 
-**Responsable:** por definir. **Tamaño:** grande. **No depende de nadie.**
+**Responsable:** Hellen. **Tamaño:** grande. **No depende de nadie.**
+
+> **✅ Hecha (2026-11-24), desplegada en `analytics`.** El resultado de la verificación está en el plan, en "Fase C". Diferencias con lo planeado en esta ficha:
+> - **Las Lambdas del simulador están en `src/sim_lambdas/`** (`stub_task` y `janitor`). `src/sim/` chocaba con el paquete `infra/sim` al importar. Es una sola Lambda de reemplazo de 128 MB: el escenario `oom` llena su propia memoria, así que no hace falta una segunda.
+> - **No hay escenario `jsonpath`:** el `oom` ya reproduce la cadena real completa, hasta `States.Runtime` en `UpdateCheckpointTask`.
+> - **`missed` agrega un Deny explícito** (`GuardIASimMissedRun`) al rol de la regla, en lugar de quitarle el permiso, y lo retira el conserje (cada 5 minutos) o `sim.py clear`. No hay que lanzar ejecuciones a mano en esa organización, porque cubren el horario.
+> - **`teams-down` guarda el ID de la versión anterior** del secreto, nunca su valor, y la restaura moviendo `AWSCURRENT`.
+> - **Se corrigió `RedriveOrRestart` (D27):** con las dos fallas reales el redrive no sirve, así que ahora relanza.
 
 ### Objetivo
 Tener en la cuenta de pruebas tres procesos que **se parecen a los de Genesys** (las mismas máquinas de estado, etiquetas y crons) y que **fallan a pedido** con los errores reales. GuardIA los ve como si fueran procesos reales: los descubre por etiqueta, abre incidentes con su historial y les hace redrive de verdad. Es la tarea 9.1 y la Fase C del plan.

@@ -270,7 +270,10 @@ def _functions(ctx: FlowContext) -> _Functions:
     )
     redrive.add_to_role_policy(
         iam.PolicyStatement(
-            sid="ReadExecution", actions=["states:DescribeExecution"], resources=[executions]
+            sid="ReadExecution",
+            # the history tells whether a redrive would rerun the root cause
+            actions=["states:DescribeExecution", "states:GetExecutionHistory"],
+            resources=[executions],
         )
     )
     redrive.add_to_role_policy(

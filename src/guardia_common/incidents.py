@@ -6,6 +6,7 @@ build the `Incident` with its SLA deadline.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,6 +31,26 @@ WATCHDOG_PATTERN = {"source": [WATCHDOG_SOURCE]}
 
 # Fixed namespace: the same execution always maps to the same incident_id.
 _INCIDENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "urn:guardia:incident")
+
+# Executions GuardIA relaunches are named after the incident they recover
+# (RedriveOrRestart). Their outcome belongs to that incident, so a failed
+# relaunch must not open an incident of its own.
+_RECOVERY_RUN = re.compile(
+    r"^(?P<incident_id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-r(?P<attempt>\d+)$"
+)
+
+
+def recovery_run_name(incident_id: str, attempt: int) -> str:
+    """Name of the execution GuardIA starts for `attempt` of an incident."""
+    return f"{incident_id}-r{attempt}"
+
+
+def recovered_incident_id(execution_arn: str | None) -> str | None:
+    """The incident a GuardIA relaunch belongs to, or None for any other execution."""
+    if not execution_arn:
+        return None
+    match = _RECOVERY_RUN.match(execution_arn.rsplit(":", 1)[-1])
+    return match.group("incident_id") if match else None
 
 
 class InvalidDetectionError(ValueError):

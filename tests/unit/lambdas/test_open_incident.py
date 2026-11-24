@@ -250,3 +250,34 @@ def test_opening_is_recorded_in_incident_events_with_timestamp(aws, deps):
     assert items[0]["timestamp"] == "2026-11-12T04:00:00.000-05:00"
     assert items[0]["sk"].startswith("2026-11-12T04:00:00.000-05:00#")
     assert "cause" not in items[0]["detail"]
+
+
+# ------------------------------------------------------- GuardIA's own relaunches
+from guardia_common.incidents import recovered_incident_id, recovery_run_name  # noqa: E402
+
+
+def test_recovery_run_names_round_trip():
+    incident_id = "0d1541a4-cc72-5a37-96b8-201e54a59ee0"
+    arn = f"{EXEC_PREFIX}:genesys-master-orgA:{recovery_run_name(incident_id, 2)}"
+    assert recovered_incident_id(arn) == incident_id
+    assert recovered_incident_id(f"{EXEC_PREFIX}:genesys-master-orgA:run-1") is None
+    assert recovered_incident_id(f"{EXEC_PREFIX}:m:not-a-uuid-r1") is None
+    assert recovered_incident_id(None) is None
+
+
+@pytest.mark.req("2.4")
+def test_a_failed_relaunch_belongs_to_its_incident_and_opens_nothing(deps, aws):
+    """Found in the test account: each failed relaunch opened a new incident,
+    which relaunched again (a cascade of incidents for one failure)."""
+    first = open_incident(status_event(), deps(), now=bogota(4, 0))
+    relaunch = recovery_run_name(first["incident_id"], 1)
+
+    again = open_incident(status_event(run=relaunch), deps(), now=bogota(4, 4))
+
+    assert again == {"opened": False, "reason": "recovery_run", "incident_id": first["incident_id"]}
+    assert aws["tables"]["Incidents"].scan(Select="COUNT")["Count"] == 1
+
+
+def test_a_relaunch_like_name_without_its_incident_is_handled_normally(deps):
+    orphan = recovery_run_name("0d1541a4-cc72-5a37-96b8-201e54a59ee0", 1)
+    assert open_incident(status_event(run=orphan), deps(), now=bogota(4, 0))["created"]
