@@ -1,4 +1,4 @@
-"""MissedRunWatchdog emits the heartbeat only after a cycle that worked (8.2, D28)."""
+"""MissedRunWatchdog emits the heartbeat only after a cycle that worked (8.2, D34)."""
 
 from __future__ import annotations
 

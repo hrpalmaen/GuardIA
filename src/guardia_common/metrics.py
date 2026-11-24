@@ -19,7 +19,7 @@ from typing import TextIO
 
 NAMESPACE = "GuardIA"
 HEARTBEAT_METRIC = "Heartbeat"
-# The heartbeat comes from MissedRunWatchdog (decision D28): a finished cycle
+# The heartbeat comes from MissedRunWatchdog (decision D34): a finished cycle
 # proves its schedule, the Lambda, the tables, and the permissions work.
 HEARTBEAT_DIMENSIONS = {"Component": "MissedRunWatchdog"}
 

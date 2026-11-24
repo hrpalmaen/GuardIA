@@ -191,7 +191,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - CloudWatch alarm for missing heartbeat data for 10 minutes, targeting an SNS topic with an email subscription for the team list and a Lambda that posts to Teams, without going through the main flow.
   - Tests: the template includes the alarm with missing data treated as breaching.
   - _Requirements: 13.2_
-  - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): heartbeat from `MissedRunWatchdog` every cycle (D28); `GuardIA-Heartbeat` alarm with missing data breaching to the `guardia-alarms` topic, which emails the team and triggers `NotifyAlarm` (Teams).
+  - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): heartbeat from `MissedRunWatchdog` every cycle (D34); `GuardIA-Heartbeat` alarm with missing data breaching to the `guardia-alarms` topic, which emails the team and triggers `NotifyAlarm` (Teams).
 
 - [ ] 8.3 Configure DLQs and alarms for GuardIA's own Lambdas
   - Retries with exponential backoff, SQS as DLQ, and an alarm on messages in the queue.

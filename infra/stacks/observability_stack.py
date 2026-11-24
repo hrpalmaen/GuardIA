@@ -11,14 +11,14 @@ Alarms (all evaluated every 5 minutes):
 * each GuardIA Lambda: `Errors > 0`, and messages visible in its DLQ;
 * each state machine (incident and escalation flows): `ExecutionsFailed > 0`.
   A Teams outage on the first escalation message ends GuardIA-Escalation-Flow
-  in `NotificationFailed`; that is how it reaches the team (D21, D28);
+  in `NotificationFailed`; that is how it reaches the team (D21, D34);
 * each Detection rule: `FailedInvocations > 0` (EventBridge could not invoke
   OpenIncident);
 * the heartbeat: `GuardIA/Heartbeat` from MissedRunWatchdog missing for
   `heartbeat-missing-minutes`, with missing data treated as breaching (8.2).
 
 `NotifyAlarm` gets only the DLQ alarm, not `Errors`: its `Errors` alarm would
-notify NotifyAlarm itself in a loop while Teams is down (D28).
+notify NotifyAlarm itself in a loop while Teams is down (D34).
 
 The dashboard `GuardIA` shows the alarms, the flows, errors per Lambda, the
 DLQs, and the heartbeat (8.1). Detection, first action, and resolution time

@@ -221,7 +221,7 @@ class MissingAlarmEmailError(ValueError):
 
 
 def alarm_email_from_environment(environ: Mapping[str, str] | None = None) -> str:
-    """The team email subscribed to the `guardia-alarms` SNS topic (T6, D21, D28).
+    """The team email subscribed to the `guardia-alarms` SNS topic (T6, D21, D34).
 
     Read from GUARDIA_ALARM_EMAIL (`.env`, never committed). Without it `cdk
     synth` fails: an alarm nobody receives is the same as no alarm. SNS sends a

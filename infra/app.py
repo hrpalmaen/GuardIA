@@ -3,13 +3,8 @@
 
     cdk deploy -c env=dev --profile analytics --all
 
-<<<<<<< HEAD
 Stacks, in dependency order: GuardIA-Data → GuardIA-Flow → GuardIA-Detection
-→ GuardIA-Observability.
-=======
-Stacks, in dependency order: GuardIA-Data → GuardIA-Flow → GuardIA-Detection,
-plus GuardIA-Sim (test account only, after GuardIA-Data).
->>>>>>> origin/main
+→ GuardIA-Observability, plus GuardIA-Sim (test account only, after GuardIA-Data).
 
 `env` (dev, workshop, or prod) selects the configuration in `config.ENVIRONMENTS`
 (decision D17). It is required: there is no default environment.
@@ -24,19 +19,17 @@ import os
 
 import aws_cdk as cdk
 
-<<<<<<< HEAD
-from config import alarm_email_from_environment, environment, oncall_from_environment
+from config import (
+    TEAMS_ALERTS_SECRET_NAME,
+    alarm_email_from_environment,
+    environment,
+    oncall_from_environment,
+)
 from stacks.data_stack import DataStack
 from stacks.detection_stack import DetectionStack
 from stacks.flow_stack import FlowStack
 from stacks.observability_stack import ObservabilityStack
-=======
-from config import TEAMS_ALERTS_SECRET_NAME, environment, oncall_from_environment
-from stacks.data_stack import DataStack
-from stacks.detection_stack import DetectionStack
-from stacks.flow_stack import FlowStack
 from stacks.sim_stack import SimStack
->>>>>>> origin/main
 
 app = cdk.App()
 config = environment(app.node.try_get_context("env"))

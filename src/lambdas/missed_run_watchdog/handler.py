@@ -13,7 +13,7 @@ Detections whose incident already exists are not published again, so a stuck
 execution produces one incident, not one per cycle.
 
 After a cycle finishes without errors it emits the `GuardIA/Heartbeat` metric
-(EMF, task 8.2 and decision D28). The heartbeat alarm in GuardIA-Observability
+(EMF, task 8.2 and decision D34). The heartbeat alarm in GuardIA-Observability
 fires when the metric is missing for 10 minutes, so a stopped schedule, a
 failing Lambda, or a lost permission is noticed even with no incidents.
 

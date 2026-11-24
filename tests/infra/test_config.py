@@ -47,7 +47,6 @@ def test_every_environment_only_overrides_known_thresholds() -> None:
         assert set(config.threshold_overrides) <= set(DEFAULT_THRESHOLDS)
 
 
-<<<<<<< HEAD
 # --------------------------------------------------------------------------- T6
 from config import MissingAlarmEmailError, alarm_email_from_environment  # noqa: E402
 
@@ -64,7 +63,8 @@ def test_alarm_email_is_trimmed() -> None:
     assert alarm_email_from_environment({"GUARDIA_ALARM_EMAIL": " team@example.com "}) == (
         "team@example.com"
     )
-=======
+
+
 # ------------------------------------------------------------------------- T8: the agent
 def test_dev_uses_azure_openai_and_workshop_uses_bedrock() -> None:
     dev, workshop = environment("dev").agent, environment("workshop").agent
@@ -117,4 +117,3 @@ def test_environments_with_the_simulator_run_in_seconds_and_production_does_not(
     assert prod["redrive-poll-interval-seconds"] == "180"
     assert prod["default-retry-after-seconds"] == "60"
     assert prod["reminder-interval-minutes"] == "10"
->>>>>>> origin/main

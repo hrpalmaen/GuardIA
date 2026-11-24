@@ -10,7 +10,7 @@ Each invocation posts once. If Teams rejects the post the Lambda raises, and
 the asynchronous invocation is retried twice by Lambda (3 attempts in total,
 as in 7.3) before the event goes to the DLQ. It has no `Errors` alarm of its
 own on purpose: that alarm would notify this same function in a loop while
-Teams is down (decision D28).
+Teams is down (decision D34).
 
 Input: the SNS event. Each record's `Message` is the CloudWatch alarm JSON.
 Only `ALARM` states are posted; `OK` and other messages are ignored.
