@@ -129,7 +129,7 @@ class GuardiaFunction(Construct):
         super().__init__(scope, construct_id)
         code_dir = code_root / name
         if not (code_dir / "handler.py").is_file():
-            relative = code_dir.relative_to(ROOT)
+            relative = code_dir.relative_to(ROOT).as_posix()  # "/" also on Windows
             raise ValueError(f"no Lambda at {relative}/handler.py")
 
         self.log_group = logs.LogGroup(
