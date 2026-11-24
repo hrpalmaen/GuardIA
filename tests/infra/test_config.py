@@ -45,3 +45,43 @@ def test_overrides_must_name_existing_thresholds() -> None:
 def test_every_environment_only_overrides_known_thresholds() -> None:
     for config in ENVIRONMENTS.values():
         assert set(config.threshold_overrides) <= set(DEFAULT_THRESHOLDS)
+
+
+# ------------------------------------------------------------------------- T8: the agent
+def test_dev_uses_azure_openai_and_workshop_uses_bedrock() -> None:
+    dev, workshop = environment("dev").agent, environment("workshop").agent
+
+    assert dev is not None and dev.provider == "azure_openai"
+    assert workshop is not None and workshop.provider == "bedrock" and workshop.model
+    assert dev.lambda_environment()["AGENT_SECRET_ID"] == "guardia/agent-azure-openai"  # noqa: S105
+    assert workshop.lambda_environment() == {
+        "AGENT_PROVIDER": "bedrock",
+        "AGENT_MODEL": workshop.model,
+    }
+
+
+def test_production_has_no_agent_until_the_team_decides_so() -> None:
+    assert environment("prod").agent is None
+
+
+def test_workshop_is_a_disposable_environment_with_the_simulator() -> None:
+    workshop = environment("workshop")
+
+    assert workshop.deploy_sim is True and workshop.retain_data is False
+    assert workshop.thresholds["remediation-enabled"] == "true"
+
+
+def test_bedrock_needs_a_model_and_the_provider_must_be_known() -> None:
+    with pytest.raises(ValueError, match="agent_model"):
+        EnvironmentConfig(name="x", deploy_sim=False, agent_provider="bedrock")
+    with pytest.raises(ValueError, match="agent_provider"):
+        EnvironmentConfig(name="x", deploy_sim=False, agent_provider="other")
+
+
+def test_the_agent_limits_are_thresholds_like_the_rest() -> None:
+    assert {
+        "agent-timeout-seconds",
+        "agent-max-turns",
+        "agent-max-tool-output-chars",
+        "agent-min-confidence",
+    } <= set(DEFAULT_THRESHOLDS)

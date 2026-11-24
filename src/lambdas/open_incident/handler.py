@@ -27,7 +27,12 @@ from botocore.exceptions import ClientError
 
 from guardia_common.audit import AuditRepository
 from guardia_common.config import get_threshold, load_thresholds
-from guardia_common.incidents import Detection, build_incident, parse_detection
+from guardia_common.incidents import (
+    Detection,
+    build_incident,
+    parse_detection,
+    recovered_incident_id,
+)
 from guardia_common.logger import get_logger, log
 from guardia_common.models import Incident, ProcessRecord
 from guardia_common.root_cause import RootCause, extract_root_cause, fetch_history
@@ -140,6 +145,21 @@ def open_incident(event: dict, deps: Deps, now: datetime | None = None) -> dict:
     detection = parse_detection(event)
     if detection is None:
         return {"opened": False, "reason": "ignored_event"}
+
+    parent_id = recovered_incident_id(detection.execution_arn)
+    if parent_id and deps.incidents.get_item(
+        Key={"incident_id": parent_id}, ProjectionExpression="incident_id"
+    ).get("Item"):
+        # A relaunch GuardIA started for an open incident: PollExecution follows
+        # it there, and a new incident would start a cascade of recoveries.
+        log(
+            LOGGER,
+            logging.INFO,
+            "Failure of a GuardIA relaunch; handled by its incident",
+            incident_id=parent_id,
+            kind=str(detection.kind),
+        )
+        return {"opened": False, "reason": "recovery_run", "incident_id": parent_id}
 
     row = deps.registry.get_item(Key={"resource_arn": detection.resource_arn}).get("Item")
     if not row:

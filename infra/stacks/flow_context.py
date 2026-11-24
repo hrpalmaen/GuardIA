@@ -23,7 +23,7 @@ from aws_cdk import aws_stepfunctions as sfn
 from aws_cdk import aws_stepfunctions_tasks as tasks
 
 from components.function import GuardiaFunction
-from config import OnCallConfig
+from config import AgentConfig, OnCallConfig
 
 from .data_stack import DataStack
 
@@ -36,6 +36,7 @@ class FlowContext:
     thresholds: Mapping[str, str]
     functions: dict[str, GuardiaFunction] = field(default_factory=dict)
     oncall: OnCallConfig | None = None  # D19; required by the escalation branch (T5)
+    agent: AgentConfig | None = None  # T8; None: no agent, `unknown` escalates
 
     def add_function(self, key: str, function: GuardiaFunction) -> GuardiaFunction:
         if key in self.functions:

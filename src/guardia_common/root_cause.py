@@ -141,3 +141,51 @@ def extract_root_cause(events: list[dict]) -> RootCause | None:
         task_failures=len(task_failures),
         location=location,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Whether a redrive would run the root cause again (used by RedriveOrRestart)
+# --------------------------------------------------------------------------- #
+_CONTAINER_STATES = {"MapStateEntered", "ParallelStateEntered"}
+
+
+def redrive_reruns_root_cause(events: list[dict]) -> bool:
+    """A redrive restarts from the state that ended the execution, not from the
+    root cause, so it only helps when that state *is* the root cause, or the Map
+    or Parallel that contains it (whose failed iterations are rerun).
+
+    Both real Genesys failures are caught first and end somewhere else, so a
+    redrive repeats the ending and fails again:
+
+    * EMTSAS: the IngestionController error is caught and the run ends in the
+      `Fail` state, which a redrive "reenters and fails again".
+    * EMT12: the Map error is caught and the run ends in `UpdateCheckpointTask`
+      with a JSONPath that only exists on the success path.
+
+    In those cases the answer is False and the execution must be relaunched
+    with its original input. With no failure in the history (for example an
+    execution-level timeout), the redrive resumes where it stopped: True.
+    """
+    endings = [e for e in events if e["type"] in EXECUTION_FAILURE_EVENTS]
+    if not endings:
+        return False
+    end_id = max(e["id"] for e in endings)
+    entered = [
+        e
+        for e in events
+        if e["id"] < end_id
+        and e["type"].endswith("StateEntered")
+        and e.get("stateEnteredEventDetails")
+    ]
+    if not entered:
+        return True
+    last = max(entered, key=lambda e: e["id"])
+    if last["type"] == "FailStateEntered":
+        return False
+
+    root = extract_root_cause(events)
+    if root is None or root.state_name is None or root.event_type in EXECUTION_FAILURE_EVENTS:
+        return True
+    if last["stateEnteredEventDetails"].get("name") == root.state_name:
+        return True
+    return last["type"] in _CONTAINER_STATES and root.event_id > last["id"]
