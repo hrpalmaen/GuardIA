@@ -28,7 +28,7 @@ from aws_cdk import aws_stepfunctions_tasks as tasks
 from constructs import Construct
 
 from components.function import GuardiaFunction, shared_layer
-from config import DEFAULT_THRESHOLDS
+from config import DEFAULT_THRESHOLDS, OnCallConfig
 
 from .data_stack import DataStack
 from .flow_context import FlowContext
@@ -48,6 +48,7 @@ class FlowStack(Stack):
         construct_id: str,
         *,
         data: DataStack,
+        oncall: OnCallConfig,
         thresholds: Mapping[str, str] = DEFAULT_THRESHOLDS,
         retain_data: bool = True,
         **kwargs,
@@ -55,7 +56,7 @@ class FlowStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         ctx = FlowContext(
             scope=self, data=data, layer=shared_layer(self, retain=retain_data),
-            thresholds=thresholds,
+            thresholds=thresholds, oncall=oncall,
         )  # fmt: skip
         self.functions = ctx.functions
 

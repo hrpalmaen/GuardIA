@@ -11,6 +11,7 @@ the code and the stacks are the same in both.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -107,3 +108,46 @@ def environment(name: str | None) -> EnvironmentConfig:
         raise UnknownEnvironmentError(
             f"unknown environment '{name}'; expected one of {sorted(ENVIRONMENTS)}"
         ) from exc
+
+
+class MissingOnCallError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class OnCallConfig:
+    """The on-call engineer (decision D19), set at deploy time and never committed.
+
+    `email` is the Teams mention id (UPN). The values end up in the environment
+    of `ResolveOnCall`, so they are only as private as the AWS account.
+    """
+
+    email: str
+    name: str | None = None
+    backup_email: str | None = None
+
+    def lambda_environment(self) -> dict[str, str]:
+        values = {
+            "GUARDIA_ONCALL_EMAIL": self.email,
+            "GUARDIA_ONCALL_NAME": self.name,
+            "GUARDIA_ONCALL_BACKUP_EMAIL": self.backup_email,
+        }
+        return {key: value for key, value in values.items() if value}
+
+
+def oncall_from_environment(environ: Mapping[str, str] | None = None) -> OnCallConfig:
+    """Reads the D19 variables (`.env`). Without the email `cdk synth` fails: an
+    escalation with nobody to mention would only fail later, during an incident."""
+    source = os.environ if environ is None else environ
+    email = (source.get("GUARDIA_ONCALL_EMAIL") or "").strip()
+    if not email or "@" not in email:
+        raise MissingOnCallError(
+            "GUARDIA_ONCALL_EMAIL is missing or is not an email. Copy .env.example to .env, "
+            "fill in the on-call engineer (the Teams mention id), and load it before cdk: "
+            "set -a; source .env; set +a"
+        )
+    return OnCallConfig(
+        email=email,
+        name=(source.get("GUARDIA_ONCALL_NAME") or "").strip() or None,
+        backup_email=(source.get("GUARDIA_ONCALL_BACKUP_EMAIL") or "").strip() or None,
+    )

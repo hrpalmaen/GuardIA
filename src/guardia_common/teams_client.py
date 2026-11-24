@@ -167,6 +167,113 @@ def build_escalation_card(
     }
 
 
+STATUS_MODES = ("reminder", "sla_breached", "resolved")
+_STATUS_TITLES = {
+    "reminder": "Recordatorio: el incidente sigue sin resolver",
+    "sla_breached": "Se venció la hora límite sin resolver el incidente",
+    "resolved": "Incidente resuelto",
+}
+
+
+def _mention_entities(people: list[dict]) -> list[dict]:
+    entities = []
+    for person in people:
+        name = _clean_name(person["display_name"])
+        entities.append(
+            {
+                "type": "mention",
+                "text": f"<at>{name}</at>",
+                "mentioned": {"id": person["teams_user_id"], "name": name},
+            }
+        )
+    return entities
+
+
+def build_status_card(
+    *,
+    mode: str,
+    incident: dict,
+    recipients: dict,
+    minutes_remaining: int,
+    deadline_label: str,
+    reminder_number: int | None = None,
+    resolved_by: str | None = None,
+    duration_minutes: int | None = None,
+    warnings: list[str] | None = None,
+) -> dict:
+    """Follow-up cards (6.5): reminder, SLA breached, and resolved.
+
+    `reminder` and `sla_breached` mention the on-call engineer and the backup
+    (8.1, 6.2). `resolved` mentions nobody. The webhook posts a new message
+    each time, so every card repeats the incident id to find it in the channel.
+    """
+    if mode not in STATUS_MODES:
+        raise ValueError(f"unknown status card mode '{mode}'")
+    entities = [] if mode == "resolved" else _mention_entities(_mentions(recipients))
+
+    title = _STATUS_TITLES[mode]
+    if mode == "reminder" and reminder_number:
+        title = f"{title} (recordatorio {reminder_number})"
+    facts = [
+        ("Organización", truncate(incident.get("organization"), MAX_ACTION)),
+        ("Proceso", truncate(incident.get("process_type"), MAX_ACTION)),
+        ("Error", truncate(incident.get("error") or incident.get("kind"), MAX_ERROR)),
+    ]
+    if mode == "reminder":
+        facts.append(("Tiempo restante", f"{minutes_remaining} min para las {deadline_label}"))
+    elif mode == "sla_breached":
+        facts.append(("Hora límite", f"las {deadline_label}"))
+        facts.append(("Retraso", f"{max(-minutes_remaining, 0)} min"))
+    else:
+        how = "una ejecución posterior terminó bien"
+        if resolved_by and resolved_by != "later_execution":
+            how = truncate(resolved_by, MAX_ACTION)
+        facts.append(("Cómo se resolvió", how))
+        if duration_minutes is not None:
+            facts.append(("Duración del incidente", f"{max(duration_minutes, 0)} min"))
+
+    body: list[dict] = [
+        {
+            "type": "TextBlock",
+            "text": f"GuardIA - Incidente {incident.get('incident_id', '')}",
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": True,
+        },
+        {"type": "TextBlock", "text": title, "wrap": True},
+    ]
+    if entities:
+        body.append(
+            {"type": "TextBlock", "text": " ".join(e["text"] for e in entities), "wrap": True}
+        )
+    for warning in warnings or []:
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": f"Aviso de configuración: {warning}",
+                "color": "Warning",
+                "wrap": True,
+            }
+        )
+    body.append({"type": "FactSet", "facts": [{"title": t, "value": v} for t, v in facts]})
+    if mode == "sla_breached":
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": "No habrá más recordatorios; GuardIA registra la resolución cuando ocurra.",
+                "wrap": True,
+            }
+        )
+
+    content: dict = {"$schema": CARD_SCHEMA, "type": "AdaptiveCard", "version": "1.4", "body": body}
+    if entities:
+        content["msteams"] = {"entities": entities}
+    return {
+        "type": "message",
+        "attachments": [{"contentType": CARD_CONTENT_TYPE, "content": content}],
+    }
+
+
 def get_webhook_url(secrets_client: Any, secret_id: str) -> str:
     """Reads the webhook address. The secret is either the address itself or
     JSON with a `webhook_url` key. Errors never include the value."""

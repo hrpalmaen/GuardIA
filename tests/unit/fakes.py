@@ -71,6 +71,28 @@ class FakeTable:
             name, placeholder = (part.strip() for part in assignment.split("="))
             self.rows[key][name] = ExpressionAttributeValues[placeholder]
 
+    def query(  # noqa: N803
+        self,
+        KeyConditionExpression,
+        ExpressionAttributeValues,
+        IndexName=None,
+        ScanIndexForward=True,
+        Limit=None,
+        ConsistentRead=False,
+        ExclusiveStartKey=None,
+    ):
+        """`attr = :v` on the partition key or on an index; oldest first by the
+        table's sort key (or `opened_at` for the index)."""
+        attr, placeholder = (part.strip() for part in KeyConditionExpression.split("="))
+        value = ExpressionAttributeValues[placeholder]
+        rows = [copy.deepcopy(r) for r in self.rows.values() if r.get(attr) == value]
+        order = (
+            "opened_at" if IndexName else (self.key_names[1] if len(self.key_names) > 1 else None)
+        )
+        if order:
+            rows.sort(key=lambda r: r[order], reverse=not ScanIndexForward)
+        return {"Items": rows[:Limit] if Limit else rows}
+
     # helpers for assertions
     def put_row(self, row: dict) -> None:
         self.rows[self._key(row)] = copy.deepcopy(row)

@@ -103,3 +103,53 @@ def test_incident_id_can_come_nested_as_incident():
     resolve_oncall({"incident": {"incident_id": "inc-7"}}, deps, now=bogota(4, 0))
 
     assert [r["incident_id"] for r in deps.events.rows.values()] == ["inc-7"]
+
+
+# --------------------------------------------------------------------------- #
+# D19: the on-call person comes from environment variables (T5)
+# --------------------------------------------------------------------------- #
+def make_env_deps(**kw) -> Deps:
+    deps = make_deps(WEEK)  # the table has a row; the environment must win
+    deps.primary_email = kw.get("primary_email", "ops@example.com")
+    deps.primary_name = kw.get("primary_name")
+    deps.backup_email = kw.get("backup_email")
+    return deps
+
+
+@pytest.mark.req("7.1")
+def test_environment_person_replaces_the_table_and_the_email_is_the_mention_id():
+    deps = make_env_deps(primary_name="Laura", backup_email="back@example.com")
+
+    result = resolve_oncall({"incident_id": "inc-1"}, deps, now=bogota(4, 0))
+
+    assert result["primary"] == {"display_name": "Laura", "teams_user_id": "ops@example.com"}
+    assert result["backup"] == {"display_name": "back", "teams_user_id": "back@example.com"}
+    assert result["warnings"] == []
+    assert result["week_start"] == "2026-11-09"
+
+
+@pytest.mark.req("7.4")
+def test_environment_without_backup_warns_and_name_defaults_to_the_email_local_part():
+    deps = make_env_deps()
+
+    result = resolve_oncall({"incident_id": "inc-1"}, deps, now=bogota(4, 0))
+
+    assert result["primary"]["display_name"] == "ops"
+    assert result["backup"] is None
+    assert result["warnings"] == ["NO_BACKUP_ONCALL"]
+
+
+def test_without_the_variables_the_table_is_still_used():
+    deps = make_deps(WEEK)
+
+    assert resolve_oncall({}, deps, now=bogota(4, 0))["primary"]["teams_user_id"] == "ana-aad-id"
+
+
+def test_environment_mode_audits_the_source_but_never_the_email():
+    deps = make_env_deps(backup_email="back@example.com")
+
+    resolve_oncall({"incident_id": "inc-1"}, deps, now=bogota(4, 0))
+
+    row = event_rows(deps.events, "inc-1")[0]
+    assert row["detail"]["source"] == "environment"
+    assert "example.com" not in str(row)

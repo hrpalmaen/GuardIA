@@ -124,12 +124,14 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
 - [ ] 6.1 Implement the `ResolveOnCall` Lambda
   - Read `OnCallSchedule` for the current date in Colombia time; if missing, return only the backup and record the warning.
   - Tests: normal week, week change on Monday, and missing on-call engineer.
+  - Progress: implemented and unit tested. T5 adds the environment mode (D19: `GUARDIA_ONCALL_EMAIL`, `GUARDIA_ONCALL_NAME`, `GUARDIA_ONCALL_BACKUP_EMAIL`; the table is the fallback) and deploys it in `GuardIA-Flow` (`stacks/flow_escalation.py`); `cdk synth` fails without the email. Pending: deploy and check in the test account.
   - _Requirements: 7.1, 7.4_
 
 - [ ] 6.2 Implement the Teams webhook client
   - Post an adaptive card with mentions (`teams_user_id`) to the Workflows flow webhook; the address is read from Secrets Manager (encrypted with KMS) and is never written to logs.
   - Content: organization, process, error, actions attempted with their result, and minutes remaining until the deadline.
   - Tests: card construction, on-call mention, truncation of long fields, and HTTP error handling.
+  - Progress: implemented and unit tested; T5 adds the follow-up cards (`build_status_card`: reminder, SLA breached, resolved). Pending: check in the real channel.
   - _Requirements: 7.2, 12.3_
 
 - [ ] 6.3 Implement the `SendEscalation` Lambda
@@ -137,12 +139,14 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - If there is no on-call engineer, mention the backup and record the configuration warning.
   - Store `teams_thread_id` in the incident.
   - Tests: successful post, failure after 3 retries with `NOTIFICATION_FAILED`, missing on-call engineer.
+  - Progress: implemented and unit tested; T5 adds `mode` (`initial`, `reminder`, `sla_breached`, `resolved`) and builds the diagnosis from `IncidentEvents`. Wired in the flow: a failed first message ends the execution in `NotificationFailed`. Pending: deploy and check in the real channel.
   - _Requirements: 7.2, 7.3, 7.4_
 
 - [ ] 6.4 Implement the `ResolveOnSuccess` Lambda
   - EventBridge rule for `SUCCEEDED` events of processes present in `ProcessRegistry`; find the escalated incident for the same process and organization and call `SendTaskSuccess` with the stored token.
   - Ignore events with no open incident and record the closure with `resolved_by=later_execution`.
   - Tests: open incident, no incident, different organization, and duplicate event.
+  - Progress: implemented and unit tested (T5): `ResolveOnSuccess`, `StoreTaskToken`, the `SUCCEEDED_PATTERN` rule and the `by_resource_arn` index on `Incidents`. Pending: deploy (one index per deploy) and check with a real success after an escalation.
   - _Requirements: 8.3, 2.2_
 
 - [ ] 6.5 Implement the reminders and SLA-breached subflow
@@ -150,6 +154,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - At the deadline without resolution: mark `SLA_BREACHED`, post the alert mentioning the on-call engineer and the backup, stop the reminders, and keep waiting for the signal for up to 6 hours to record the resolution.
   - On resolution, post the resolution message in the incident thread.
   - Tests with simulated time: resolution before the first reminder, after two reminders, and SLA expiry.
+  - Progress: implemented (T5): `PlanReminder` and the chain in `stacks/flow_escalation.py` (reminder loop with task token, `SLA_BREACHED`, `ClosedUnresolved` after the post-deadline wait, `RESOLVED` with the resolution message). Unit and synth tested; the chain is not yet run in Step Functions. Pending: deploy and the cases of the T5 sheet.
   - _Requirements: 6.2, 8.1, 8.2, 8.3, 8.4_
 
 - [ ] 6.6 Implement the `GroupIncidents` Lambda

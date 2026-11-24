@@ -17,11 +17,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from aws_cdk import Stack
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_stepfunctions as sfn
 from aws_cdk import aws_stepfunctions_tasks as tasks
 
 from components.function import GuardiaFunction
+from config import OnCallConfig
 
 from .data_stack import DataStack
 
@@ -33,6 +35,7 @@ class FlowContext:
     layer: lambda_.ILayerVersion
     thresholds: Mapping[str, str]
     functions: dict[str, GuardiaFunction] = field(default_factory=dict)
+    oncall: OnCallConfig | None = None  # D19; required by the escalation branch (T5)
 
     def add_function(self, key: str, function: GuardiaFunction) -> GuardiaFunction:
         if key in self.functions:
@@ -66,4 +69,40 @@ class FlowContext:
             payload=sfn.TaskInput.from_object(payload),
             result_path=sfn.JsonPath.DISCARD,
             retry_on_service_exceptions=True,
+        )
+
+    def invoke(
+        self,
+        state_name: str,
+        function: GuardiaFunction,
+        payload: Mapping[str, object],
+        result_path: str,
+    ) -> tasks.LambdaInvoke:
+        """A Lambda state that keeps the flow state and adds the Lambda's answer
+        at `result_path` (the contract of the flow state keys)."""
+        return tasks.LambdaInvoke(
+            self.scope,
+            f"{state_name}-Task",
+            state_name=state_name,
+            lambda_function=function.function,
+            payload=sfn.TaskInput.from_object(dict(payload)),
+            payload_response_only=True,
+            result_path=result_path,
+            retry_on_service_exceptions=True,
+        )
+
+    def grant_task_response(self, function: lambda_.IFunction) -> None:
+        """Lets `function` answer a `.waitForTaskToken` state (SendTaskSuccess).
+
+        The resource is `*` on purpose: IAM has no resource type for the task
+        response actions (the token is what authorizes the call), and naming
+        the state machine here would make the function depend on it while the
+        state machine depends on the function.
+        """
+        function.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="AnswerTaskToken",
+                actions=["states:SendTaskSuccess", "states:SendTaskFailure"],
+                resources=["*"],
+            )
         )
