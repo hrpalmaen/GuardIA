@@ -43,6 +43,8 @@ class TableSpec:
 
 
 EXECUTION_ARN_INDEX = "by_execution_arn"
+# ResolveOnSuccess (6.4): the incidents of one process, newest first.
+RESOURCE_ARN_INDEX = "by_resource_arn"
 
 TABLES: dict[str, TableSpec] = {
     spec.name: spec
@@ -55,7 +57,10 @@ TABLES: dict[str, TableSpec] = {
         TableSpec(
             name="Incidents",
             partition_key="incident_id",
-            indexes=(IndexSpec(EXECUTION_ARN_INDEX, "execution_arn"),),
+            indexes=(
+                IndexSpec(EXECUTION_ARN_INDEX, "execution_arn"),
+                IndexSpec(RESOURCE_ARN_INDEX, "resource_arn", "opened_at"),
+            ),
             env_var="INCIDENTS_TABLE",
         ),
         TableSpec(

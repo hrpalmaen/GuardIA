@@ -1,6 +1,6 @@
 import aws_cdk as cdk
 import pytest
-from aws_cdk.assertions import Template
+from aws_cdk.assertions import Match, Template
 
 from config import DEFAULT_THRESHOLDS, SSM_PREFIX
 from stacks.data_stack import DataStack
@@ -33,7 +33,7 @@ def test_default_deadline_matches_design() -> None:
 
 
 # --------------------------------------------------------------------------- 1.2
-from guardia_common.tables import EXECUTION_ARN_INDEX, TABLES  # noqa: E402
+from guardia_common.tables import EXECUTION_ARN_INDEX, RESOURCE_ARN_INDEX, TABLES  # noqa: E402
 
 
 def _tables(template: Template) -> dict:
@@ -59,14 +59,24 @@ def test_tables_are_encrypted_with_the_customer_key(template: Template) -> None:
         assert "KMSMasterKeyId" in sse
 
 
-def test_incidents_has_the_execution_arn_index(template: Template) -> None:
+def test_incidents_has_the_execution_arn_and_resource_arn_indexes(template: Template) -> None:
     template.has_resource_properties("AWS::DynamoDB::Table", {
         "KeySchema": [{"AttributeName": "incident_id", "KeyType": "HASH"}],
-        "GlobalSecondaryIndexes": [{
-            "IndexName": EXECUTION_ARN_INDEX,
-            "KeySchema": [{"AttributeName": "execution_arn", "KeyType": "HASH"}],
-            "Projection": {"ProjectionType": "ALL"},
-        }],
+        "GlobalSecondaryIndexes": Match.array_with([
+            {
+                "IndexName": EXECUTION_ARN_INDEX,
+                "KeySchema": [{"AttributeName": "execution_arn", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": RESOURCE_ARN_INDEX,
+                "KeySchema": [
+                    {"AttributeName": "resource_arn", "KeyType": "HASH"},
+                    {"AttributeName": "opened_at", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ]),
     })  # fmt: skip
 
 

@@ -59,3 +59,19 @@ class AuditRepository:
                 if err.response["Error"]["Code"] != "ConditionalCheckFailedException":
                     raise
         raise RuntimeError(f"Could not append audit event for {incident_id}")
+
+
+def read_events(table: Any, incident_id: str) -> list[dict]:
+    """The audit events of one incident, oldest first (read-only `Query`)."""
+    events: list[dict] = []
+    kwargs: dict[str, Any] = {
+        "KeyConditionExpression": "incident_id = :i",
+        "ExpressionAttributeValues": {":i": incident_id},
+        "ConsistentRead": True,
+    }
+    while True:
+        page = table.query(**kwargs)
+        events.extend(page.get("Items", []))
+        if not page.get("LastEvaluatedKey"):
+            return events
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]

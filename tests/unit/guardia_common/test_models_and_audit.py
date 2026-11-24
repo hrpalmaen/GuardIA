@@ -61,3 +61,15 @@ def test_audit_propagates_unexpected_errors():
 
     with pytest.raises(ClientError):
         AuditRepository(Broken(), actor="test").append("inc-1", "A")
+
+
+def test_read_events_returns_the_events_of_one_incident_oldest_first():
+    from guardia_common.audit import read_events
+    from tests.unit.fakes import FakeTable
+
+    table = FakeTable("incident_id", "sk")
+    for incident_id, sk in (("a", "2"), ("b", "1"), ("a", "1")):
+        table.put_row({"incident_id": incident_id, "sk": sk, "event_type": "X"})
+
+    assert [e["sk"] for e in read_events(table, "a")] == ["1", "2"]
+    assert read_events(table, "nobody") == []

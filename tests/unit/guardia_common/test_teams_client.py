@@ -269,3 +269,64 @@ def test_post_refuses_a_non_https_address_without_sending():
         post_card("http://insecure.example.com/x", {}, opener=opener)
 
     assert "request" not in opener.sent
+
+
+# --------------------------------------------------------------------------- T5
+from guardia_common.teams_client import build_status_card  # noqa: E402
+
+
+def status_card(mode, **overrides):
+    args = {
+        "mode": mode,
+        "incident": INCIDENT,
+        "recipients": {"primary": PERSON, "backup": OTHER},
+        "minutes_remaining": 42,
+        "deadline_label": "06:00",
+    }
+    return build_status_card(**{**args, **overrides})
+
+
+def mentioned_ids(payload) -> list[str]:
+    content = payload["attachments"][0]["content"]
+    return [e["mentioned"]["id"] for e in content.get("msteams", {}).get("entities", [])]
+
+
+@pytest.mark.req("8.1")
+def test_reminder_card_mentions_both_and_shows_the_number_and_minutes_left():
+    payload = status_card("reminder", reminder_number=3)
+
+    assert mentioned_ids(payload) == ["ana-aad-id", "beto-aad-id"]
+    assert "recordatorio 3" in card_text(payload)
+    assert facts(payload)["Tiempo restante"] == "42 min para las 06:00"
+
+
+@pytest.mark.req("6.2")
+def test_sla_breached_card_mentions_both_and_shows_the_delay():
+    payload = status_card("sla_breached", minutes_remaining=-17)
+
+    assert mentioned_ids(payload) == ["ana-aad-id", "beto-aad-id"]
+    assert "Se venció la hora límite" in card_text(payload)
+    assert facts(payload)["Retraso"] == "17 min"
+
+
+def test_resolved_card_mentions_nobody_and_shows_how_and_how_long():
+    payload = status_card("resolved", resolved_by="later_execution", duration_minutes=95)
+
+    assert mentioned_ids(payload) == []
+    assert "msteams" not in payload["attachments"][0]["content"]
+    assert facts(payload)["Duración del incidente"] == "95 min"
+    assert "ejecución posterior" in facts(payload)["Cómo se resolvió"]
+
+
+@pytest.mark.req("12.3")
+@pytest.mark.parametrize("mode", ["reminder", "sla_breached", "resolved"])
+def test_status_cards_never_carry_the_raw_cause_and_show_the_incident_id(mode):
+    text = card_text(status_card(mode))
+
+    assert "abc123-DO-NOT-LEAK" not in text
+    assert "inc-1" in text  # the webhook cannot thread messages: the id finds them
+
+
+def test_status_card_rejects_unknown_modes():
+    with pytest.raises(ValueError, match="unknown status card mode"):
+        status_card("shout")

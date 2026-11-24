@@ -130,6 +130,25 @@ class DataStack(Stack):
             resource_arns=[path, f"{path}/*"],
         )
 
+    def grant_read_secret(self, grantee: iam.IGrantable, secret_name: str) -> iam.Grant:
+        """Read one secret's value (`GetSecretValue`) and decrypt it with the data key.
+
+        Both statements go into the grantee's own policy. `Secret.grant_read`
+        would write the key policy of this stack with the grantee's role, and
+        the flow stack already depends on this one (a dependency cycle).
+        """
+        self.key.grant_decrypt(grantee)
+        return iam.Grant.add_to_principal(
+            grantee=grantee,
+            actions=["secretsmanager:GetSecretValue"],
+            resource_arns=[self.secrets[secret_name].secret_arn],
+        )
+
+    def grant_read_events(self, grantee: iam.IGrantable) -> iam.Grant:
+        """Read the audit events of an incident (`Query`). Cannot change them."""
+        self.key.grant_decrypt(grantee)
+        return self.tables[AUDIT_TABLE].grant(grantee, "dynamodb:Query")
+
     def grant_append_events(self, grantee: iam.IGrantable) -> iam.Grant:
         """Write access to `IncidentEvents` that can only add events."""
         table = self.tables[AUDIT_TABLE]

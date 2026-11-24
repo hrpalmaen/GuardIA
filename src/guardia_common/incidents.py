@@ -27,6 +27,13 @@ STATUS_CHANGE_PATTERN = {
     "detail": {"status": sorted(k.value for k in FAILURE_STATUSES)},
 }
 WATCHDOG_PATTERN = {"source": [WATCHDOG_SOURCE]}
+# Rule that invokes ResolveOnSuccess (6.4): any execution that ends well. The
+# Lambda ignores the ones that are not in ProcessRegistry or have no open incident.
+SUCCEEDED_PATTERN = {
+    "source": ["aws.states"],
+    "detail-type": [STATUS_CHANGE_DETAIL_TYPE],
+    "detail": {"status": ["SUCCEEDED"]},
+}
 
 # Fixed namespace: the same execution always maps to the same incident_id.
 _INCIDENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "urn:guardia:incident")
