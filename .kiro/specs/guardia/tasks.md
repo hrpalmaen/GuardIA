@@ -185,16 +185,19 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - CDK dashboard with the success indicators.
   - Tests: metrics are emitted with the expected dimensions.
   - _Requirements: 13.1_
+  - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): `guardia_common/metrics.py` (EMF) and the `GuardIA` CloudWatch dashboard (alarms, flows, Lambda errors, DLQs, heartbeat). Detection, first action, and resolution time metrics are not emitted yet.
 
 - [ ] 8.2 Create the heartbeat alarm
   - CloudWatch alarm for missing heartbeat data for 10 minutes, targeting an SNS topic with an email subscription for the team list and a Lambda that posts to Teams, without going through the main flow.
   - Tests: the template includes the alarm with missing data treated as breaching.
   - _Requirements: 13.2_
+  - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): heartbeat from `MissedRunWatchdog` every cycle (D28); `GuardIA-Heartbeat` alarm with missing data breaching to the `guardia-alarms` topic, which emails the team and triggers `NotifyAlarm` (Teams).
 
 - [ ] 8.3 Configure DLQs and alarms for GuardIA's own Lambdas
   - Retries with exponential backoff, SQS as DLQ, and an alarm on messages in the queue.
   - Tests: template assertions for each Lambda.
   - _Requirements: 13.3_
+  - Progress (T6, implemented and unit tested; pending deploy and the verification in the T6 card): every `GuardiaFunction` already has retries and an SQS DLQ; `GuardIA-Observability` adds `Errors` and DLQ alarms for each one, plus `ExecutionsFailed` for both flows and `FailedInvocations` for the Detection rules.
 
 - [ ] 9. End-to-end tests (depends on 6.5, 7.3)
 - [ ] 9.1 Create synthetic test state machines

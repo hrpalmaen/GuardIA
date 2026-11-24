@@ -45,3 +45,21 @@ def test_overrides_must_name_existing_thresholds() -> None:
 def test_every_environment_only_overrides_known_thresholds() -> None:
     for config in ENVIRONMENTS.values():
         assert set(config.threshold_overrides) <= set(DEFAULT_THRESHOLDS)
+
+
+# --------------------------------------------------------------------------- T6
+from config import MissingAlarmEmailError, alarm_email_from_environment  # noqa: E402
+
+
+@pytest.mark.req("13.2")
+@pytest.mark.parametrize("value", [None, "", "   ", "not-an-email", "a b@c.co"])
+def test_synth_fails_without_a_valid_alarm_email(value) -> None:
+    environ = {} if value is None else {"GUARDIA_ALARM_EMAIL": value}
+    with pytest.raises(MissingAlarmEmailError, match="GUARDIA_ALARM_EMAIL"):
+        alarm_email_from_environment(environ)
+
+
+def test_alarm_email_is_trimmed() -> None:
+    assert alarm_email_from_environment({"GUARDIA_ALARM_EMAIL": " team@example.com "}) == (
+        "team@example.com"
+    )

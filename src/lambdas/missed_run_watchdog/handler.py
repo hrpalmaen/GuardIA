@@ -12,6 +12,11 @@ the rule delivers it to OpenIncident, which opens the incident idempotently.
 Detections whose incident already exists are not published again, so a stuck
 execution produces one incident, not one per cycle.
 
+After a cycle finishes without errors it emits the `GuardIA/Heartbeat` metric
+(EMF, task 8.2 and decision D28). The heartbeat alarm in GuardIA-Observability
+fires when the metric is missing for 10 minutes, so a stopped schedule, a
+failing Lambda, or a lost permission is noticed even with no incidents.
+
 `Deps.sfn` can be the real client or `guardia_local.stepfunctions.ReplayStepFunctionsClient`;
 `Deps.bus` can be the real EventBridge client or `guardia_local.bus.LocalEventBus`.
 
@@ -25,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache
@@ -35,6 +41,7 @@ import boto3
 from guardia_common.config import load_thresholds
 from guardia_common.incidents import WATCHDOG_SOURCE, incident_id_for, parse_detection
 from guardia_common.logger import get_logger, log
+from guardia_common.metrics import emit_heartbeat
 from guardia_common.models import ProcessRecord
 from guardia_common.watchdog import (
     WatchdogSettings,
@@ -62,6 +69,7 @@ class Deps:
     bus: Any  # EventBridge client (put_events)
     ssm: Any
     event_bus_name: str = "default"
+    heartbeat: Callable[..., Any] = emit_heartbeat
 
 
 def _registry(registry: Any) -> list[ProcessRecord]:
@@ -169,6 +177,8 @@ def run_watchdog(deps: Deps, now: datetime | None = None) -> dict:
         )
     log(LOGGER, logging.INFO, "Watchdog cycle finished", processes=len(processes),
         published=len(new), already_open=already_open)  # fmt: skip
+    # Only reached when the whole cycle worked: an error above means no heartbeat.
+    deps.heartbeat(now, properties={"processes": len(processes), "published": len(new)})
     return {"processes": len(processes), "published": new, "already_open": already_open}
 
 
