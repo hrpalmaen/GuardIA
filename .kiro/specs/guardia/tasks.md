@@ -9,11 +9,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: CDK synthesis generates the template without errors.
   - _Requirements: 13.3_
 
-- [ ] 1.2 Define the DynamoDB tables
+- [x] 1.2 Define the DynamoDB tables
   - Create `ProcessRegistry`, `Incidents` (unique index by `execution_arn`, with encrypted `task_token` and `teams_thread_id`), `IncidentEvents`, `ErrorCatalog`, and `OnCallSchedule` (with `teams_user_id`, `display_name`, and `email`), all encrypted with KMS.
   - `IncidentEvents` with a policy that only allows conditional `PutItem`, a 13-month TTL, and point-in-time recovery.
   - Tests: an IAM policy test confirms that `IncidentEvents` rejects updates and deletes.
-  - Progress: tables defined once in `guardia_common/tables.py` and built from it by `DataStack` (KMS, TTL, PITR, `execution_arn` index) and by the local environments. Pending: the IAM append-only policy and its test (they need the Lambda roles).
+  - Progress: tables defined once in `guardia_common/tables.py` and built from it by `DataStack` (KMS, TTL, PITR, `execution_arn` index) and by the local environments. Append-only: the `IncidentEvents` resource policy denies `UpdateItem`, `DeleteItem`, and `BatchWriteItem` to every principal, and `DataStack.grant_append_events` gives Lambdas only `PutItem`; both are covered by synth tests (Fase B PR 1).
   - _Requirements: 10.2, 10.3_
 
 - [ ] 1.3 Implement the `guardia_common` library
@@ -37,7 +37,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests with moto: complete resource, incomplete resource, invalid value, and new process.
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.2 Schedule discovery every 15 minutes
+- [x] 2.2 Schedule discovery every 15 minutes
   - EventBridge Scheduler rule in CDK targeting `DiscoverProcesses`.
   - Tests: assertion on the synthesized template.
   - _Requirements: 1.1_
@@ -50,10 +50,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: duplicate event, recording of all fields, and rejection of `SUCCEEDED` executions.
   - _Requirements: 2.2, 2.3, 2.4_
 
-- [ ] 3.2 Create the EventBridge status-change rule
+- [x] 3.2 Create the EventBridge status-change rule
   - Filter `FAILED`, `TIMED_OUT`, and `ABORTED` from the state machines present in `ProcessRegistry`.
   - Target: `OpenIncident`, with an SQS DLQ.
   - Tests: valid and invalid event patterns against the rule pattern.
+  - Progress: `GuardIA-Detection` (Fase B PR 2). The rule matches failures of every state machine in the account with `STATUS_CHANGE_PATTERN`; OpenIncident ignores the ones not in `ProcessRegistry` (including GuardIA's own flow). Verified in the test account with a manual MISSED_RUN event: incident opened, flow started, classified, and a redelivered event did not open a second one.
   - _Requirements: 2.1_
 
 - [x] 3.3 Implement the computation of expected executions and maximum duration
@@ -75,14 +76,15 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Table-driven tests with 429, 403, failed 404, `TIMED_OUT`, `MISSED_RUN`, and unknown cause.
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 4.2 Define the Bedrock agent
-  - Agent with a configurable Amazon Nova Pro model, classification and summarization instructions, and no action groups.
-  - JSON output schema (`AgentDecision`) and a prompt with examples.
-  - Tests: the CDK template grants no infrastructure permissions to the agent role.
+- [ ] 4.2 Define the agent (`AgentPort`, tools, and `AgentDecision`)
+  - Provider-independent tool-use loop with read-only tools resolved from the incident, a `submit_decision` tool validated as `AgentDecision`, Spanish system instructions with examples and prompt-injection rules (D24).
+  - Adapters: Azure OpenAI (test account) and Bedrock Converse (workshop account), selected by `EnvironmentConfig.agent_provider`.
+  - Tests: the CDK template grants the agent role no write permissions on the infrastructure, and Bedrock access is limited to one model ARN.
+  - Detailed brief: `docs/analisis/tareas-fase-b-equipo.md`, T8.
   - _Requirements: 4.5, 12.2_
 
 - [ ] 4.3 Implement the `InvokeAgent` Lambda
-  - Invoke the agent with a 30 s timeout, validate the output with pydantic, and escalate on any failure.
+  - Run the agent loop with a 30 s budget, validate the output with pydantic, record `AGENT_DECIDED` or `AGENT_FAILED`, and escalate on any failure without breaking the flow.
   - Tests with simulated responses: valid, invalid JSON, disallowed action, and timeout.
   - _Requirements: 4.5, 4.6_
 
@@ -126,11 +128,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: card construction, on-call mention, truncation of long fields, and HTTP error handling.
   - _Requirements: 7.2, 12.3_
 
-- [ ] 6.3 Implement the `SendEscalation` Lambda with email backup
-  - Retry the post up to 3 times with backoff; if it keeps failing, send the same content through Amazon SES to the on-call engineer, the backup, and the team list.
+- [ ] 6.3 Implement the `SendEscalation` Lambda
+  - Retry the post up to 3 times with backoff; if it keeps failing, record `NOTIFICATION_FAILED` and raise so the DLQ alarm fires (no email backup, D21).
   - If there is no on-call engineer, mention the backup and record the configuration warning.
   - Store `teams_thread_id` in the incident.
-  - Tests: successful post without email, failure with email backup, missing on-call engineer.
+  - Tests: successful post, failure after 3 retries with `NOTIFICATION_FAILED`, missing on-call engineer.
   - _Requirements: 7.2, 7.3, 7.4_
 
 - [ ] 6.4 Implement the `ResolveOnSuccess` Lambda
@@ -163,9 +165,9 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 11.1, 11.2_
 
 - [ ] 7.3 Implement the summary delivery
-  - Post to the Teams channel reusing the client from 6.2, with its own webhook stored in Secrets Manager; 3 retries and then email with SES.
+  - Post to the Teams channel reusing the client from 6.2, with its own webhook stored in Secrets Manager; 3 retries and then the failure is recorded and the alarm fires (D21).
   - Schedule the run at 06:15 (America/Bogota) with EventBridge Scheduler.
-  - Tests: successful delivery, Teams failure with email backup.
+  - Tests: successful delivery, Teams failure recorded.
   - _Requirements: 11.1, 11.3, 11.4_
 
 - [ ] 8. Observability and self-monitoring of GuardIA (depends on 5.5)
@@ -200,7 +202,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 4.3, 7.2, 8.1, 8.3_
 
 - [ ] 9.4 Test the webhook-down, SLA-breached, and low-time scenarios
-  - Webhook down: 3 retries and backup email.
+  - Webhook down: 3 retries, `NOTIFICATION_FAILED`, and the alarm email through SNS.
   - Unresolved until the deadline: `SLA_BREACHED` with an alert to on-call and backup, with no further reminders.
   - 30 minutes or less remaining: escalation in parallel with remediation.
   - _Requirements: 6.1, 6.2, 7.3, 8.2, 8.4_

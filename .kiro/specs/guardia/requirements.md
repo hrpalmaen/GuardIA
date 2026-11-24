@@ -59,7 +59,7 @@ GuardIA operates on three levels: **Level 0** (continuous monitoring), **Level 1
 1. WHEN an incident is opened THEN the system SHALL first classify it using the deterministic error catalog, by process type and cause.
 2. WHEN the cause is a 429 error THEN the system SHALL classify it as `auto_recoverable`.
 3. WHEN the cause is a 403 or authentication error THEN the system SHALL classify it as `requires_escalation`.
-4. WHEN the cause is a 404 that made the execution fail, or the incident is `MISSED_RUN` THEN the system SHALL classify it as `requires_escalation`.
+4. WHEN the cause is a 404 that made the execution fail, or the incident is `MISSED_RUN` or `STUCK_RUN` THEN the system SHALL classify it as `requires_escalation`.
 5. WHEN the cause is not in the catalog THEN the system SHALL consult the AI agent to obtain a suggested classification and a diagnosis summary.
 6. IF the agent does not respond within 30 seconds, or returns an action outside the allowed list THEN the system SHALL classify the incident as `requires_escalation`.
 
@@ -90,7 +90,7 @@ GuardIA operates on three levels: **Level 0** (continuous monitoring), **Level 1
 #### Acceptance Criteria
 1. WHEN an incident must be escalated THEN the system SHALL identify the on-call engineer and the backup according to the rotation calendar for the current date (Colombia time).
 2. WHEN the message is posted THEN the system SHALL mention the on-call engineer and include the organization, process, error, actions attempted with their result, and minutes remaining until the deadline.
-3. IF posting to Teams returns an error THEN the system SHALL retry up to 3 times and, if it keeps failing, SHALL send the same content by email to the on-call engineer, the backup, and the team distribution list.
+3. IF posting to Teams returns an error THEN the system SHALL retry up to 3 times and, if it keeps failing, SHALL record `NOTIFICATION_FAILED` on the incident and raise the alarm of GuardIA's own failures (Teams is the only notification channel; see D21).
 4. IF there is no on-call engineer registered for the date THEN the system SHALL mention the backup and record a configuration warning.
 
 ### Requirement 8 — Reminders and automatic closure
@@ -128,7 +128,7 @@ GuardIA operates on three levels: **Level 0** (continuous monitoring), **Level 1
 1. WHEN it is 06:15 a.m. (Colombia time, configurable) THEN the system SHALL generate the summary of what happened since 6:00 p.m. of the previous day.
 2. WHEN the summary is generated THEN the system SHALL include processes executed successfully, incidents by level, GuardIA actions with their result, escalations with their resolution time, `SLA_BREACHED` incidents, and configuration warnings.
 3. WHEN the summary is ready THEN the system SHALL post it to the team's Microsoft Teams channel.
-4. IF posting to Teams fails after 3 attempts THEN the system SHALL send it by email to the team distribution list.
+4. IF posting to Teams fails after 3 attempts THEN the system SHALL record the failure and raise the alarm of GuardIA's own failures.
 
 ### Requirement 12 — Security and action limits
 
