@@ -9,7 +9,7 @@ Cada tarea de este documento es una **ficha autocontenida**: tiene el objetivo, 
 | # | Tarea | Depende de | Responsable | Tamaño |
 |---|---|---|---|---|
 | [T0](#t0--pendientes-de-repositorio) | Pendientes de repositorio (PR, tareas sin marcar) | — | Hellen | Pequeña |
-| [T1](#t1--esqueleto-del-flujo-y-updateincidentstatus) | Esqueleto del flujo y `UpdateIncidentStatus` | — | Hellen | Pequeña |
+| [T1](#t1--esqueleto-del-flujo-y-updateincidentstatus) | ✅ Esqueleto del flujo y `UpdateIncidentStatus` | — | Hellen | Pequeña |
 | [T3](#t3--guardia-sim-pr-3) | `GuardIA-Sim`: procesos simulados en la nube (PR 3) | — | Por definir | Grande |
 | [T4](#t4--remediationpolicy-y-rama-de-recuperación-pr-4) | `RemediationPolicy` y rama de recuperación (PR 4) | T1 | Daniela | Mediana |
 | [T5](#t5--rama-de-escalamiento-pr-5) | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED`, `ResolveOnSuccess` (PR 5) | T1 | Laura | Grande |
@@ -156,7 +156,25 @@ T3 ───────────┘   (T3 no depende de nadie: puede empezar
 
 ## T1 · Esqueleto del flujo y `UpdateIncidentStatus`
 
-**Responsable:** Hellen. **Tamaño:** pequeña. **Bloquea a:** T4, T5, T6.
+**Responsable:** Hellen. **Tamaño:** pequeña. **Bloquea a:** T4, T5, T6 y T8.
+
+> **✅ Hecha (2026-11-24), desplegada en `analytics`.** Lo que quedó, para quien construya sobre ella:
+> - **Archivos:**
+>   - `infra/stacks/flow_context.py`: `FlowContext`, con `add_function` y `update_status`.
+>   - `infra/stacks/flow_recovery.py`: `build_recovery(ctx, escalation)`, el placeholder de T4.
+>   - `infra/stacks/flow_escalation.py`: `build_escalation(ctx)`, el placeholder de T5.
+>   - `src/lambdas/update_incident_status/`.
+>   - Los campos nuevos de `Incident`.
+>   - `FlowStack.functions` y `DetectionStack.functions`.
+> - **`build_recovery` recibe la cadena de escalamiento** para que T4 pueda enviar ahí el ESCALATE de la política y las fallas de la recuperación. T5 debe devolver desde `build_escalation` una cadena que se pueda usar como destino desde varios lugares: desde la `Choice` y desde el `Catch` de T4.
+> - **`UpdateIncidentStatus`:**
+>   - Es idempotente: si el incidente ya tiene ese estado, no cambia nada ni escribe en la auditoría (`changed=false`, `same_status`).
+>   - **`RESOLVED` es final:** una transición posterior se ignora (`already_final`). Así un recordatorio o un `SLA_BREACHED` que llegue tarde no reabre un incidente resuelto.
+>   - Los `details` se sanean antes de escribirse en la auditoría.
+> - **Verificado en la nube:**
+>   - un `MISSED_RUN` llega a `EscalationPlaceholder`;
+>   - un `TIMED_OUT` (`States.Timeout`, que es `auto_recoverable`) llega a `RecoveryPlaceholder`;
+>   - `UpdateIncidentStatus` responde bien a un cambio, a un cambio repetido, a la resolución y a un intento después de resolver.
 
 ### Objetivo
 Dejar `GuardIA-Incident-Flow` dividido en piezas que T4, T5 y T6 puedan programar al mismo tiempo sin editar el mismo archivo, y crear la Lambda que cambia el estado de un incidente.

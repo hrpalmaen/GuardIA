@@ -33,7 +33,14 @@ data = DataStack(
     thresholds=config.thresholds,
     retain_data=config.retain_data,
 )
-flow = FlowStack(app, "GuardIA-Flow", env=aws_env, data=data, retain_data=config.retain_data)
+flow = FlowStack(
+    app,
+    "GuardIA-Flow",
+    env=aws_env,
+    data=data,
+    thresholds=config.thresholds,
+    retain_data=config.retain_data,
+)
 DetectionStack(
     app,
     "GuardIA-Detection",

@@ -113,6 +113,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
 - [ ] 5.5 Define the `GuardIA-Incident-Flow` state machine
   - States: `Classify` → `InvokeAgent` (if unknown) → `Policy` → `Remediate` (wait, redrive, poll, verify) or `Escalate` → `CloseIncident`.
   - Parallel escalation branch when the policy returns `REMEDIATE_AND_ESCALATE`.
+  - Progress (T1): the flow is composed in `infra/stacks/flow_stack.py` from `flow_recovery.build_recovery` (T4) and `flow_escalation.build_escalation` (T5), with placeholders; `UpdateIncidentStatus` is the only status writer (idempotent, `RESOLVED` is final). Deployed; both routes verified in the test account.
   - Tests: definition tests with the Step Functions TestState API for each branch.
   - _Requirements: 5.4, 5.5, 6.1, 13.1_
 

@@ -175,6 +175,13 @@ class DetectionStack(Stack):
         )
         flow.grant_start_execution(open_fn)
 
+        # Every Lambda of this stack, for the Observability alarms (T6).
+        self.functions: dict[str, GuardiaFunction] = {
+            "DiscoverProcesses": self.discover,
+            "MissedRunWatchdog": self.watchdog,
+            "OpenIncident": self.open_incident,
+        }
+
         self.rules = {
             name: events.Rule(
                 self,
