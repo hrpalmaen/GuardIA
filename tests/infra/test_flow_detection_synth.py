@@ -29,6 +29,8 @@ def stacks() -> dict[str, Template]:
     return {
         "flow": Template.from_stack(flow),
         "detection": Template.from_stack(detection),
+        "flow_stack": flow,
+        "detection_stack": detection,
     }
 
 
@@ -53,16 +55,17 @@ def _function_env(template: Template, description_prefix: str) -> dict:
 
 
 # --------------------------------------------------------------------------- flow
+def _definition(template: Template) -> dict:
+    (machine,) = template.find_resources("AWS::StepFunctions::StateMachine").values()
+    parts = machine["Properties"]["DefinitionString"]["Fn::Join"][1]
+    return json.loads("".join(p if isinstance(p, str) else "ARN" for p in parts))
+
+
 def test_flow_state_machine_starts_with_classify_incident(stacks) -> None:
     machines = stacks["flow"].find_resources("AWS::StepFunctions::StateMachine")
     (machine,) = machines.values()
-    props = machine["Properties"]
-    assert props["StateMachineName"] == FLOW_NAME
-    definition = json.loads(
-        "".join(
-            p if isinstance(p, str) else "ARN" for p in props["DefinitionString"]["Fn::Join"][1]
-        )
-    )
+    assert machine["Properties"]["StateMachineName"] == FLOW_NAME
+    definition = _definition(stacks["flow"])
     assert definition["StartAt"] == "ClassifyIncident"
     assert definition["States"]["ClassifyIncident"]["ResultPath"] == "$.classification"
 
@@ -138,3 +141,65 @@ def test_no_lambda_may_update_or_delete_audit_events(stacks, name) -> None:
         resources = json.dumps(statement.get("Resource"))
         if "IncidentEvents" in resources:
             assert not set(_actions(statement)) & {*AUDIT_DENIED_ACTIONS, "dynamodb:*"}
+
+
+# ------------------------------------------------------------------------ T1
+def test_flow_routes_recoverable_incidents_to_recovery_and_the_rest_to_escalation(stacks) -> None:
+    states = _definition(stacks["flow"])["States"]
+    assert states["ClassifyIncident"]["Next"] == "RouteByClassification"
+    route = states["RouteByClassification"]
+    (choice,) = route["Choices"]
+    assert choice == {
+        "Variable": "$.classification.classification",
+        "StringEquals": "auto_recoverable",
+        "Next": "RecoveryPlaceholder",
+    }
+    assert route["Default"] == "EscalationPlaceholder"
+    assert states["RecoveryPlaceholder"]["Next"] == "RecoveryPending"
+    assert states["EscalationPlaceholder"]["Next"] == "EscalationPending"
+
+
+def test_stacks_expose_their_functions_for_observability(stacks) -> None:
+    assert set(stacks["flow_stack"].functions) == {"ClassifyIncident", "UpdateIncidentStatus"}
+    assert set(stacks["detection_stack"].functions) == {
+        "DiscoverProcesses", "MissedRunWatchdog", "OpenIncident",
+    }  # fmt: skip
+
+
+@pytest.mark.req("10.1")
+def test_update_incident_status_can_only_get_and_update_incidents(stacks) -> None:
+    env = _function_env(stacks["flow"], "GuardIA UpdateIncidentStatus")
+    assert set(env) >= {"INCIDENTS_TABLE", "INCIDENT_EVENTS_TABLE"}
+    on_incidents = {
+        action
+        for statement in _statements(stacks["flow"])
+        if "Incidents169" in json.dumps(statement.get("Resource"))
+        for action in _actions(statement)
+    }
+    assert on_incidents <= {"dynamodb:GetItem", "dynamodb:UpdateItem"}
+
+
+def test_flow_context_rejects_duplicate_functions_and_builds_status_states() -> None:
+    from aws_cdk import aws_lambda as lambda_
+    from aws_cdk import aws_stepfunctions as sfn
+
+    from components.function import GuardiaFunction, shared_layer
+    from stacks.flow_context import FlowContext
+
+    app = cdk.App(context=NO_BUNDLING)
+    data = DataStack(app, "D2", env=ENV)
+    stack = cdk.Stack(app, "Ctx", env=ENV)
+    ctx = FlowContext(scope=stack, data=data, layer=shared_layer(stack), thresholds={})
+    fn = GuardiaFunction(stack, "U", name="update_incident_status", layer=ctx.layer)
+    ctx.add_function("UpdateIncidentStatus", fn)
+    with pytest.raises(ValueError, match="already registered"):
+        ctx.add_function("UpdateIncidentStatus", fn)
+
+    state = ctx.update_status("SetEscalated", "ESCALATED", details={"reason": "x"})
+    sfn.StateMachine(stack, "Probe", definition_body=sfn.DefinitionBody.from_chainable(state))
+    rendered = _definition(Template.from_stack(stack))["States"]["SetEscalated"]
+    assert rendered["ResultPath"] is None  # the flow state is not overwritten
+    assert rendered["Parameters"]["Payload"] == {
+        "incident_id.$": "$.incident_id", "status": "ESCALATED", "details": {"reason": "x"},
+    }  # fmt: skip
+    assert isinstance(fn.function, lambda_.Function)

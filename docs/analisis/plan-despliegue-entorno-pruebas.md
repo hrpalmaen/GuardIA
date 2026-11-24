@@ -198,7 +198,7 @@ ClassifyIncident
 
 Cada PR se despliega en `analytics` al terminar.
 
-**Estado (2026-11-24):** los PR 1 y 2 están desplegados en `analytics`. Prueba manual del PR 2: un evento `MISSED_RUN` publicado a mano abrió el incidente, arrancó `GuardIA-Incident-Flow` y quedó clasificado como `requires_escalation` en unos 4 s; el mismo evento repetido no abrió otro. `DiscoverProcesses` y `MissedRunWatchdog` corren en la nube sin errores (todavía no hay procesos etiquetados: eso llega con `GuardIA-Sim`). El `ErrorCatalog` se carga con `scripts/load_error_catalog.py`.
+**Estado (2026-11-24):** los PR 1 y 2 y la tarea T1 (esqueleto del flujo, ver `tareas-fase-b-equipo.md`) están desplegados en `analytics`. Prueba manual del PR 2: un evento `MISSED_RUN` publicado a mano abrió el incidente, arrancó `GuardIA-Incident-Flow` y quedó clasificado como `requires_escalation` en unos 4 s; el mismo evento repetido no abrió otro. `DiscoverProcesses` y `MissedRunWatchdog` corren en la nube sin errores (todavía no hay procesos etiquetados: eso llega con `GuardIA-Sim`). El `ErrorCatalog` se carga con `scripts/load_error_catalog.py`.
 
 | # | PR | Qué se puede probar en la nube | Responsable sugerido |
 |---|---|---|---|

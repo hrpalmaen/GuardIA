@@ -148,6 +148,13 @@ class Incident(_Item):
     catalog_action: CatalogAction | None = None
     catalog_max_wait_s: int | None = None
     flow_execution_arn: str | None = None
+    # Written by the flow (UpdateIncidentStatus, escalation, ResolveOnSuccess).
+    # Declared here because extra fields are dropped on read (extra="ignore").
+    updated_at: str | None = None
+    resolved_at: str | None = None
+    resolved_by: str | None = None
+    teams_thread_id: str | None = None
+    task_token: str | None = None
 
     @field_validator("remediation", mode="before")
     @classmethod
