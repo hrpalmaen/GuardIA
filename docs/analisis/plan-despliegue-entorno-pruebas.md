@@ -1,6 +1,6 @@
 # Plan de despliegue de GuardIA en la cuenta de pruebas de AWS
 
-Fecha: 2026-11-23 · Estado: **borrador para revisión del equipo** (no hay código todavía)
+Fecha: 2026-11-23 (Fase B detallada el 2026-11-24) · Estado: **borrador para revisión del equipo** (no hay código todavía)
 
 ## 1. Objetivo y restricciones
 
@@ -22,8 +22,12 @@ Llevar GuardIA, que hoy corre en local con moto, a una cuenta real de AWS para p
 | P2 | **Teams real**: se crea un canal nuevo para GuardIA, con webhook de Workflows | 2026-11-23 |
 | P3 | **IA después.** La primera versión escala los errores desconocidos directamente a una persona. Cuando se agregue, el agente queda detrás de una interfaz con dos adaptadores posibles: Bedrock o un modelo en Azure (Claude en Azure AI Foundry u OpenAI) | 2026-11-23 |
 | P4 | Las máquinas de estado del simulador se **reconstruyen desde los historiales de los fixtures**, sin pedir las definiciones reales a los dueños | 2026-11-23 |
-| P5 | **La persona de turno se configura con una variable de entorno con su correo**, porque cambia cada 15 días. El correo sirve como identificador de Teams (UPN) para la mención y como destinatario del correo de respaldo. El valor **no va en el repositorio**: se define al desplegar. La tabla `OnCallSchedule` queda para cuando exista un calendario | 2026-11-23 |
+| P5 | **La persona de turno se configura con una variable de entorno con su correo**, porque cambia cada 15 días. El correo sirve como identificador de Teams (UPN) para la mención. El valor **no va en el repositorio**: se define al desplegar. La tabla `OnCallSchedule` queda para cuando exista un calendario | 2026-11-23 |
 | P6 | **Un solo canal de Teams** para alertas y resumen diario: los dos secretos de webhook guardan la misma dirección, así que separarlos después no requiere código | 2026-11-23 |
+| P7 | **Sin correo de respaldo: Teams es el único canal** (como ya lo implementa `SendEscalation`). Si Teams falla 3 veces, se registra `NOTIFICATION_FAILED`, la Lambda falla y la alarma de la DLQ avisa. Aplica también al resumen diario. SES deja de ser necesario; el heartbeat y las alarmas avisan por correo con una suscripción de SNS | 2026-11-24 |
+| P8 | **`STUCK_RUN` siempre escala**, igual que `MISSED_RUN`: cancelar o relanzar una ejecución que sigue corriendo no es seguro sin hablar con el dueño | 2026-11-24 |
+| P9 | **`DailySummary` (7.2 y 7.3) queda fuera de la Fase B**: no bloquea las pruebas de punta a punta | 2026-11-24 |
+| P10 | Responsables de los PR de la Fase B según la tabla de la sección B6 | 2026-11-24 |
 
 ## 3. Arquitectura en la cuenta de pruebas
 
@@ -37,7 +41,7 @@ Llevar GuardIA, que hoy corre en local con moto, a una cuenta real de AWS para p
 └──────────────┬──────────────────────────────────────────────┘
                │ eventos reales de Step Functions
 ┌──────────────▼──────────── GuardIA (igual que producción) ─┐
-│ Data · Detection · Flow · Escalation · Observability        │
+│ Data · Flow · Detection · Observability                     │
 └──────────────┬──────────────────────────────────────────────┘
                │ webhook (Secrets Manager)
          Canal de Teams de GuardIA (real)
@@ -87,7 +91,8 @@ GuardIA no distingue el simulador de los procesos reales: ve ejecuciones reales 
 | Crear **un solo canal** de Teams y su flujo de Workflows "cuando se recibe una solicitud de webhook, publicar en un canal". Las alertas y el resumen diario usan el mismo webhook | Equipo | Decidido; falta crearlo |
 | Persona de turno y respaldo: los correos van en `GUARDIA_ONCALL_EMAIL` y `GUARDIA_ONCALL_BACKUP_EMAIL` (sección 5.1) | Equipo | ✅ Definidos |
 | Confirmar que Docker funciona en los WSL de quien despliega (lo usa el empaquetado de Lambdas) | Equipo | ✅ |
-| SES: verificar el remitente (`GUARDIA_SES_SENDER`) y **todos** los destinatarios. La cuenta está en sandbox (máximo 200 correos al día y solo a correos verificados) | Equipo | El remitente y el correo de turno ya están verificados; **falta verificar el correo del respaldo** |
+| ~~SES: verificar remitente y destinatarios~~ | — | **Ya no hace falta** (P7). Las identidades ya verificadas pueden quedarse o borrarse; no hay que verificar el correo del respaldo |
+| Suscribir el correo del equipo al tópico SNS de alarmas (heartbeat y DLQ). SNS envía un correo de confirmación que hay que aceptar | Equipo | Después de desplegar `GuardIA-Observability` |
 
 **Nota sobre las credenciales de AWS (revisión del 2026-11-23, solo lectura):**
 
@@ -96,42 +101,107 @@ GuardIA no distingue el simulador de los procesos reales: ve ejecuciones reales 
 - **El perfil `analytics`** es otra cuenta, en `us-east-1`. Ya tiene **CDK bootstrap hecho** (stack `CDKToolkit`, versión 32) y no tiene procesos `GCRAW`.
 - **Decisión:** la cuenta de pruebas es `analytics` (P1).
 
-**Nota sobre el remitente de SES:**
-
-- **El riesgo:** si el remitente es una dirección `@gmail.com`, SES la puede verificar, pero los correos salen de servidores que no son de Google. No pasan la validación de dominio de Gmail (DMARC) y es probable que lleguen a spam o los rechacen.
-- **Para las pruebas:** sirve como remitente una dirección corporativa ya verificada.
-- **Para producción:** conviene verificar un dominio o subdominio corporativo en SES, con DKIM.
-- **En todo caso:** el correo es solo el respaldo de Teams.
-- **Decisión (2026-11-23):** por ahora se mantiene el remitente de Gmail, aceptando el riesgo de que los correos lleguen a spam. En la Fase D se revisa que lleguen; si no llegan, se cambia `GUARDIA_SES_SENDER` sin tocar código.
-
 ### 5.1 Persona de turno por variable de entorno (decisión P5)
 
 | Variable | Obligatoria | Uso |
 |---|---|---|
-| `GUARDIA_ONCALL_EMAIL` | Sí | La persona de turno: mención en Teams (el correo es su UPN) y correo de respaldo |
+| `GUARDIA_ONCALL_EMAIL` | Sí | La persona de turno: mención en Teams (el correo es su UPN) |
 | `GUARDIA_ONCALL_NAME` | No | El nombre que se muestra en la mención. Si falta, se toma de la parte del correo antes de la `@` |
 | `GUARDIA_ONCALL_BACKUP_EMAIL` | No | El respaldo. Si falta, no hay respaldo y queda la advertencia de configuración del requisito 7.4 |
-| `GUARDIA_SES_SENDER` | Sí | El remitente del correo de respaldo; debe estar verificado en SES |
 
 - **De dónde sale el valor:** quien despliega lo pone en su `.env` local, que ya está en `.gitignore`, o en la línea de comandos. CDK lo pasa como variable de entorno a la Lambda `ResolveOnCall`. Si falta `GUARDIA_ONCALL_EMAIL`, el despliegue falla en `cdk synth` en vez de desplegar un GuardIA que no puede avisar a nadie.
-- **Cambio cada 15 días:** se edita el `.env` y se corre `cdk deploy GuardIA-Escalation`. Tarda menos de un minuto y queda registrado en CloudFormation. Una alternativa que no requiere desplegar es un parámetro de SSM, pero se mantiene la variable de entorno por decisión del equipo.
+- **Cambio cada 15 días:** se edita el `.env` y se corre `cdk deploy GuardIA-Flow` (ahí vive `ResolveOnCall`, sección B3). Tarda menos de un minuto y queda registrado en CloudFormation. Una alternativa que no requiere desplegar es un parámetro de SSM, pero se mantiene la variable de entorno por decisión del equipo.
 - **Código:** `ResolveOnCall` usa las variables si están definidas y, si no, la tabla `OnCallSchedule`, así que el código de Laura y sus pruebas siguen valiendo. El resultado tiene la misma forma (`primary`, `backup`, `warnings`), por lo que `SendEscalation` no cambia.
 - **Requisito 7.1:** pide un calendario de rotación por fecha. Esta configuración es un calendario de una sola persona a la vez, con rotación manual; queda como decisión D19 en `design.md`.
 
 ### Fase B · GuardIA desplegable (es lo que va a producción)
 
-1. **Empaquetado de Lambdas:** una capa compartida con `pydantic`, `croniter` y `guardia_common`, más el código de cada Lambda. Se prueba con `cdk synth`.
-2. **Configuración por entorno:** un contexto de CDK `env=dev|prod` que define los prefijos de nombres, los umbrales de SSM, los nombres de los secretos y si se despliega `GuardIA-Sim`. En pruebas se acortan los tiempos (por ejemplo, recordatorios cada 2 min).
-3. **Stacks nuevos:**
-   - `GuardIA-Detection`: el descubrimiento cada 15 min (2.2), el watchdog cada 5 min y las reglas `STATUS_CHANGE_PATTERN` y `WATCHDOG_PATTERN` hacia `OpenIncident` (3.2).
-   - `GuardIA-Flow`: la máquina de estados real `GuardIA-Incident-Flow` (5.5), que reemplaza al `IncidentFlow` provisional del demo, más `RemediationPolicy` (5.1) y la espera por `Retry-After` (5.4).
-   - `GuardIA-Escalation`: `ResolveOnSuccess` (6.4), los recordatorios y `SLA_BREACHED` (6.5) y el secreto del webhook.
-   - `GuardIA-Observability`: las DLQ, las alarmas de las Lambdas, el heartbeat (8.x) y el tablero.
-4. **Permisos mínimos:**
-   - **Escritura:** GuardIA solo escribe en sus propias tablas.
-   - **Sobre los procesos:** solo `DescribeExecution`, `GetExecutionHistory`, `ListExecutions`, `RedriveExecution` y `StartExecution`, limitados a recursos con la etiqueta `guardia:monitor=true`.
-   - **Auditoría:** `IncidentEvents` es de solo agregar (pendiente de 1.2).
-5. **Pruebas:** las pruebas unitarias con moto siguen igual y las de `cdk synth` se extienden a cada stack.
+#### B1 · Empaquetado de las Lambdas
+
+| Tema | Decisión |
+|---|---|
+| Dependencias | **Una capa compartida** con `pydantic`, `pydantic_core`, `croniter` y `guardia_common` (unos 10 MB). Cada Lambda lleva solo su carpeta. `boto3` no se empaqueta porque viene en el runtime |
+| Construcción | Bundling de CDK con Docker (imagen oficial de Python 3.12) y `pip install --platform manylinux… --only-binary`, para que `pydantic_core` salga compilado para Lambda y no para WSL |
+| Arquitectura | **arm64** (Graviton): cerca de 20 % más barato, sin cambios de código |
+| `GuardiaFunction` | Una construcción de CDK que aplica a todas las Lambdas lo mismo: runtime, capa, logs JSON con retención de 30 días, timeout, DLQ y tags |
+
+#### B2 · Configuración por entorno (D17)
+
+- **Selección:** `cdk deploy -c env=dev --profile analytics`. `infra/config.py` define un `EnvironmentConfig` por entorno con el prefijo de nombres (`guardia-dev-…`), los umbrales que cambian (en dev, recordatorios cada 2 min y la hora límite en horario laboral), si se despliega `GuardIA-Sim` y el umbral `remediation-enabled`.
+- **`.env`:** el app de CDK lee variables de entorno, no el archivo. Antes de desplegar: `set -a; source .env; set +a`. Si falta `GUARDIA_ONCALL_EMAIL`, `cdk synth` falla.
+- **Secretos:** los webhooks se crean **vacíos** desde CDK y el valor se pone una vez a mano con `aws secretsmanager put-secret-value`, así la dirección nunca pasa por el código.
+
+#### B3 · Stacks y su orden
+
+```
+GuardIA-Data ──► GuardIA-Flow ──► GuardIA-Detection
+     │                 │                 │
+     └─────────────────┴────► GuardIA-Observability
+```
+
+| Stack | Contenido | Tareas |
+|---|---|---|
+| **Data** (ya existe) | Tablas, llave KMS, parámetros de SSM, **los secretos de los webhooks** y la regla append-only de `IncidentEvents`: ninguna Lambda recibe `UpdateItem` ni `DeleteItem` sobre esa tabla | 1.2 (cierra) |
+| **Flow** | `GuardIA-Incident-Flow` y sus Lambdas: `ClassifyIncident`, `RemediationPolicy`, `RedriveOrRestart`, `PollExecution`, `ResolveOnCall`, `SendEscalation`, `ResolveOnSuccess`, más la regla de `SUCCEEDED` | 5.1, 5.4, 5.5, 6.4, 6.5 |
+| **Detection** | `DiscoverProcesses` (cada 15 min), `MissedRunWatchdog` (cada 5 min) y `OpenIncident` con sus dos reglas (`STATUS_CHANGE_PATTERN` y `WATCHDOG_PATTERN`), con reintentos y DLQ | 2.2, 3.2 |
+| **Observability** | Tópico SNS de alarmas con suscripción de correo, alarmas de las DLQ y de errores de las Lambdas, heartbeat y tablero | 8.1–8.3 |
+
+El stack `GuardIA-Escalation` del primer borrador queda dentro de `GuardIA-Flow`, para evitar dependencias circulares. Detection depende de Flow porque `OpenIncident` arranca la máquina de estados.
+
+**Permisos sobre los procesos de Genesys:** solo `DescribeExecution`, `GetExecutionHistory`, `ListExecutions`, `RedriveExecution` y `StartExecution`, limitados por **patrón de ARN** (`stateMachine:BI-*-GCRAW-*` y sus ejecuciones) y, donde Step Functions lo permita, por la etiqueta (`guardia:monitor=true`; `guardia:remediation=auto` para redrive y relanzamiento). Falta confirmar en la documentación qué acciones aceptan la condición por etiqueta. GuardIA solo escribe en sus propias tablas.
+
+#### B4 · La máquina de estados `GuardIA-Incident-Flow`
+
+Reemplaza al `IncidentFlow` provisional del demo de Laura, que sirve como especificación.
+
+```
+ClassifyIncident
+   └─► RemediationPolicy (Lambda; función pura en guardia_common)
+         ├─ recover ─► Wait (Retry-After, si aplica) ─► RedriveOrRestart
+         │               └─► Wait 3 min ─► PollExecution ─┬─ SUCCEEDED ─► RESOLVED
+         │                                                 └─ falló ─► (otro intento o) escalate
+         ├─ observe ─► escalate         (modo solo observación: remediation-enabled=false)
+         └─ escalate ─► ResolveOnCall ─► SendEscalation (solo Teams, P7)
+                          └─► bucle de recordatorios:
+                                waitForTaskToken (timeout = intervalo de recordatorio)
+                                  ├─ ResolveOnSuccess envía el token ─► RESOLVED
+                                  └─ timeout ─► ¿pasó la hora límite?
+                                        ├─ no ─► recordatorio ─► vuelve a esperar
+                                        └─ sí ─► SLA_BREACHED ─► espera hasta 6 h sin recordatorios
+```
+
+- **Reglas de `RemediationPolicy`:** `unknown` sin agente → escala; `MISSED_RUN` y `STUCK_RUN` → escala (P8); `escalate-only` o `remediation-enabled=false` → escala; si quedan 30 min o menos → recupera y escala en paralelo; máximo 2 intentos.
+- **Recordatorios con token:** cada espera genera un token nuevo que se guarda en `Incidents`, y `ResolveOnSuccess` usa el último. Si alguna vez usa uno viejo, igual marca el incidente como resuelto y la siguiente vuelta del bucle lo ve. Es la forma más simple de tener recordatorios y cierre automático sin estados en paralelo.
+- **Si Teams falla:** `SendEscalation` registra `NOTIFICATION_FAILED` y falla; el estado lo captura (`Catch`), deja el incidente así y termina con error, lo que dispara la alarma de errores de la máquina de estados.
+- **Definición:** con las construcciones de Step Functions de CDK en Python, para que los ARNs se conecten solos y las pruebas de `synth` validen la estructura. Antes de desplegar se valida con `ValidateStateMachineDefinition` (solo lectura).
+
+#### B5 · Código nuevo o ajustes
+
+| Cambio | Dónde |
+|---|---|
+| `RemediationPolicy` como función pura (sale de `decide` del demo) y su Lambda | `guardia_common/policy.py`, `lambdas/remediation_policy/` |
+| `STUCK_RUN` → `requires_escalation` por regla, igual que `MISSED_RUN` (P8) | `guardia_common/classification.py` |
+| `ResolveOnCall` lee las variables de entorno y, si no están, usa la tabla (D19) | `lambdas/resolve_on_call/` |
+| `SendEscalation`: guardar el token y el modo recordatorio. **Sin correo de respaldo** (P7) | `lambdas/send_escalation/` |
+| `ResolveOnSuccess` (nueva) | `lambdas/resolve_on_success/` |
+| Umbral `remediation-enabled` (modo solo observación) | `infra/config.py` |
+
+**Pruebas:** las unitarias con moto siguen igual; se agregan pruebas de `cdk synth` por stack (recursos, permisos, reglas y la definición de la máquina de estados).
+
+#### B6 · Orden de trabajo en PRs pequeños
+
+Cada PR se despliega en `analytics` al terminar.
+
+| # | PR | Qué se puede probar en la nube | Responsable sugerido |
+|---|---|---|---|
+| 1 | Configuración por entorno, capa, `GuardiaFunction` y **primer despliegue de `GuardIA-Data`** (confirma los permisos del usuario de `analytics`) | Tablas y secretos creados | Hellen |
+| 2 | `GuardIA-Flow` mínimo (solo `ClassifyIncident`) y `GuardIA-Detection` completo | Eventos de prueba enviados a mano a EventBridge | Hellen |
+| 3 | **Fase C en paralelo:** `GuardIA-Sim` | La noche real en la nube, en Nivel 0 | Por definir |
+| 4 | `RemediationPolicy`, regla de `STUCK_RUN` y la rama de recuperación | Redrive real contra Sim | Daniela |
+| 5 | Rama de escalamiento: turno, Teams, recordatorios, `SLA_BREACHED` y `ResolveOnSuccess` | Tarjetas en el canal real | Laura |
+| 6 | `GuardIA-Observability` | Alarmas, heartbeat y correo de SNS | Por definir |
+
+**Fuera de la Fase B (P9):** `DailySummary` y su envío (7.2 y 7.3), la agrupación (6.6) y el agente (4.2 y 4.3).
 
 ### Fase C · Simulador en la nube (solo pruebas)
 
@@ -149,8 +219,8 @@ GuardIA no distingue el simulador de los procesos reales: ve ejecuciones reales 
 | EMTSAS falla con 500 y el redrive funciona | Incidente abierto en ≤ 2 min, redrive real, `RESOLVED` sin escalar |
 | EMT12 sin memoria | Causa raíz `Runtime.OutOfMemory`, tarjeta en el canal real con mención, recordatorio, cierre automático cuando la siguiente ejecución termina bien |
 | EMT22 no arranca | `MISSED_RUN` y escalamiento |
-| EMT12 atascado | `STUCK_RUN` |
-| Teams caído | 3 intentos, `NOTIFICATION_FAILED` y alarma |
+| EMT12 atascado | `STUCK_RUN` y escalamiento directo, sin redrive (P8) |
+| Teams caído | 3 intentos, `NOTIFICATION_FAILED`, mensaje en la DLQ y correo de la alarma por SNS (no hay correo de respaldo, P7) |
 | Hora límite vencida y poco tiempo restante | `SLA_BREACHED` y escalamiento paralelo |
 
 El reloj de la nube es real y no se puede comprimir la noche. Por eso, en pruebas, la hora límite (`deadline-local`) y los crons se configuran para que cada escenario dure minutos y corra en horario laboral. Un script lanza cada escenario y verifica en DynamoDB el estado y el historial del incidente.
@@ -176,6 +246,6 @@ El reloj de la nube es real y no se puede comprimir la noche. Por eso, en prueba
 |---|---|
 | El simulador no se comporta igual que los procesos reales en algún detalle no visible en el historial | Los supuestos quedan anotados (sección 4). El modo solo observación en producción lo detecta antes de remediar |
 | Alguien despliega `GuardIA-Sim` en producción | El stack se niega a desplegarse con `env=prod` y las etiquetas lo identifican |
+| Teams caído durante un incidente: sin correo de respaldo (P7), nadie recibe la tarjeta | La alarma llega al equipo por correo de SNS; el incidente queda en `NOTIFICATION_FAILED` y se puede reenviar |
 | Menciones de Teams a una cuenta sin celular | Confirmar que el usuario de pruebas es una persona real con Teams móvil |
 | Olvidar cambiar la persona de turno a los 15 días | Agregar al resumen diario quién está de turno y desde cuándo, para que se note si no se actualizó |
-| SES en sandbox | Verificar destinatarios. El correo es solo respaldo de Teams |

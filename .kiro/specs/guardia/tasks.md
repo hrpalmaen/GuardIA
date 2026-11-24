@@ -126,11 +126,11 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - Tests: card construction, on-call mention, truncation of long fields, and HTTP error handling.
   - _Requirements: 7.2, 12.3_
 
-- [ ] 6.3 Implement the `SendEscalation` Lambda with email backup
-  - Retry the post up to 3 times with backoff; if it keeps failing, send the same content through Amazon SES to the on-call engineer, the backup, and the team list.
+- [ ] 6.3 Implement the `SendEscalation` Lambda
+  - Retry the post up to 3 times with backoff; if it keeps failing, record `NOTIFICATION_FAILED` and raise so the DLQ alarm fires (no email backup, D21).
   - If there is no on-call engineer, mention the backup and record the configuration warning.
   - Store `teams_thread_id` in the incident.
-  - Tests: successful post without email, failure with email backup, missing on-call engineer.
+  - Tests: successful post, failure after 3 retries with `NOTIFICATION_FAILED`, missing on-call engineer.
   - _Requirements: 7.2, 7.3, 7.4_
 
 - [ ] 6.4 Implement the `ResolveOnSuccess` Lambda
@@ -163,9 +163,9 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 11.1, 11.2_
 
 - [ ] 7.3 Implement the summary delivery
-  - Post to the Teams channel reusing the client from 6.2, with its own webhook stored in Secrets Manager; 3 retries and then email with SES.
+  - Post to the Teams channel reusing the client from 6.2, with its own webhook stored in Secrets Manager; 3 retries and then the failure is recorded and the alarm fires (D21).
   - Schedule the run at 06:15 (America/Bogota) with EventBridge Scheduler.
-  - Tests: successful delivery, Teams failure with email backup.
+  - Tests: successful delivery, Teams failure recorded.
   - _Requirements: 11.1, 11.3, 11.4_
 
 - [ ] 8. Observability and self-monitoring of GuardIA (depends on 5.5)
@@ -200,7 +200,7 @@ All tasks are coding and automated testing tasks. Each sub-task takes 1 to 4 hou
   - _Requirements: 4.3, 7.2, 8.1, 8.3_
 
 - [ ] 9.4 Test the webhook-down, SLA-breached, and low-time scenarios
-  - Webhook down: 3 retries and backup email.
+  - Webhook down: 3 retries, `NOTIFICATION_FAILED`, and the alarm email through SNS.
   - Unresolved until the deadline: `SLA_BREACHED` with an alert to on-call and backup, with no further reminders.
   - 30 minutes or less remaining: escalation in parallel with remediation.
   - _Requirements: 6.1, 6.2, 7.3, 8.2, 8.4_
