@@ -148,6 +148,7 @@ class Incident(_Item):
     catalog_action: CatalogAction | None = None
     catalog_max_wait_s: int | None = None
     flow_execution_arn: str | None = None
+    recovery_execution_arn: str | None = None  # RedriveOrRestart, last attempt
     # Written by the flow (UpdateIncidentStatus, escalation, ResolveOnSuccess).
     # Declared here because extra fields are dropped on read (extra="ignore").
     updated_at: str | None = None
